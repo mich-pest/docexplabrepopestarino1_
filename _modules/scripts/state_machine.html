@@ -1,0 +1,764 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>scripts.state_machine &mdash; Assignment 1 - Experiemntal Robotics Course 0.1 documentation</title>
+      <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/graphviz.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
+        <script src="../../_static/jquery.js"></script>
+        <script src="../../_static/underscore.js"></script>
+        <script src="../../_static/doctools.js"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+            <a href="../../index.html" class="icon icon-home"> Assignment 1 - Experiemntal Robotics Course
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <!-- Local TOC -->
+              <div class="local-toc"></div>
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">Assignment 1 - Experiemntal Robotics Course</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home"></a> &raquo;</li>
+          <li><a href="../index.html">Module code</a> &raquo;</li>
+      <li>scripts.state_machine</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for scripts.state_machine</h1><div class="highlight"><pre>
+<span></span><span class="ch">#!/usr/bin/env python</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">.. module:: state_machine</span>
+<span class="sd">   :platform: Unix</span>
+<span class="sd">   :synopsis: Python module which aim is to manage the high level behavior of the robot </span>
+<span class="sd">.. moduleauthor:: Michele Pestarino &lt;s4672032@studenti.unige.it&gt;</span>
+
+<span class="sd">ROS node that allows to move across the given topological map performing the task as stated in the project requirements. </span>
+<span class="sd">In the following, the behavior of the robot is implemented as a Smach finite state machine. </span>
+<span class="sd">For this purpose, each state is associated with a class that includes an `execute` function, that implements the actual logic corresponding to that state. </span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">import</span> <span class="nn">rospy</span>
+<span class="kn">import</span> <span class="nn">roslaunch</span>
+<span class="kn">import</span> <span class="nn">smach</span>
+<span class="kn">import</span> <span class="nn">smach_ros</span>
+<span class="kn">import</span> <span class="nn">time</span>
+<span class="kn">import</span> <span class="nn">random</span>
+
+<span class="kn">from</span> <span class="nn">assignment1_ERL</span> <span class="kn">import</span> <span class="n">architecture_name_mapper</span> <span class="k">as</span> <span class="n">anm</span>
+<span class="kn">from</span> <span class="nn">assignment1_ERL</span> <span class="kn">import</span> <span class="n">helpers</span>
+<span class="kn">from</span> <span class="nn">assignment1_ERL</span> <span class="kn">import</span> <span class="n">ontology_manager</span> <span class="k">as</span> <span class="n">om</span>
+<span class="kn">from</span> <span class="nn">arch_skeleton.msg</span> <span class="kn">import</span> <span class="n">Point</span><span class="p">,</span> <span class="n">PlanGoal</span><span class="p">,</span> <span class="n">ControlGoal</span>
+
+<div class="viewcode-block" id="Init"><a class="viewcode-back" href="../../index.html#scripts.state_machine.Init">[docs]</a><span class="k">class</span> <span class="nc">Init</span><span class="p">(</span><span class="n">smach</span><span class="o">.</span><span class="n">State</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Class associated to the `INIT` state in the smach finite state machine.</span>
+<span class="sd">    In this state the robot waits until the ontology is correctly loaded from the given path and retrieves some basic information (e.g. robot label).</span>
+<span class="sd">    </span>
+<span class="sd">    Attributes:</span>
+<span class="sd">        _helper (InterfaceHelper): Global helper needed to access constants defined at module level.</span>
+<span class="sd">        _manager (OntologyManager): Global ontology manager needed for dealing with ARMOR, accessible at module level.</span>
+<span class="sd">        _ontology_filepath (str): Location of the ontology in the system.</span>
+<span class="sd">        _iri (str): Iri path given by the user.</span>
+<span class="sd">        _mode (bool): Boolean indicating if robust mode is enabled.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">interface_helper</span><span class="p">,</span> <span class="n">ontology_manager</span><span class="p">,</span> <span class="n">ontology_filepath</span><span class="p">,</span> <span class="n">iri</span><span class="p">,</span> <span class="n">mode</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_helper</span> <span class="o">=</span> <span class="n">interface_helper</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_manager</span> <span class="o">=</span> <span class="n">ontology_manager</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_ontology_filepath</span> <span class="o">=</span> <span class="n">ontology_filepath</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_iri</span> <span class="o">=</span> <span class="n">iri</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_mode</span> <span class="o">=</span> <span class="n">mode</span>
+        <span class="n">smach</span><span class="o">.</span><span class="n">State</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">outcomes</span><span class="o">=</span><span class="p">[</span><span class="n">anm</span><span class="o">.</span><span class="n">READY_TRANS</span><span class="p">])</span>
+   
+<div class="viewcode-block" id="Init.execute"><a class="viewcode-back" href="../../index.html#scripts.state_machine.Init.execute">[docs]</a>    <span class="k">def</span> <span class="nf">execute</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">userdata</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Core function for the `INIT` state.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            userdata (Remapper): structure that stores data exchanged between states.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            rospy.ROSInitException: if the given ontology path is not valid or if there are zero (or multiple) instances of robot in the ontology, unique by specifications.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            str: Following state in the finite state machine (`REASONING`).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">rospy</span><span class="o">.</span><span class="n">loginfo</span><span class="p">(</span><span class="s1">&#39;Executing state Init&#39;</span><span class="p">)</span>
+
+        <span class="c1"># Loading ontology operation </span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_manager</span><span class="o">.</span><span class="n">load_ontology_from_file</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_ontology_filepath</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_iri</span><span class="p">):</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Ontology loaded correctly from </span><span class="se">\&#39;</span><span class="s2">&quot;</span> <span class="o">+</span> <span class="n">anm</span><span class="o">.</span><span class="n">WARNING_COLOR</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ontology_filepath</span> <span class="o">+</span> <span class="n">anm</span><span class="o">.</span><span class="n">STANDARD_COLOR</span> <span class="o">+</span> <span class="s2">&quot;</span><span class="se">\&#39;</span><span class="s2">&quot;</span><span class="p">)</span>
+
+            <span class="c1"># Query the label for unique instanciated individual of class ROBOT</span>
+            <span class="n">res</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_manager</span><span class="o">.</span><span class="n">get_ind_of_class</span><span class="p">(</span><span class="n">anm</span><span class="o">.</span><span class="n">ROBOT_CLASS</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">res</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="n">err_msg</span> <span class="o">=</span> <span class="s2">&quot;Not unique instanciated individuals of class &quot;</span> <span class="o">+</span> <span class="n">anm</span><span class="o">.</span><span class="n">ROBOT_CLASS</span>
+                <span class="k">raise</span> <span class="n">rospy</span><span class="o">.</span><span class="n">ROSInitException</span><span class="p">(</span><span class="n">err_msg</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">res</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">err_msg</span> <span class="o">=</span> <span class="s2">&quot;No instanciated individuals of class &quot;</span> <span class="o">+</span> <span class="n">anm</span><span class="o">.</span><span class="n">ROBOT_CLASS</span> <span class="o">+</span> <span class="s2">&quot; in the ontology&quot;</span>
+                <span class="k">raise</span> <span class="n">rospy</span><span class="o">.</span><span class="n">ROSInitException</span><span class="p">(</span><span class="n">err_msg</span><span class="p">)</span>
+
+            <span class="c1"># Retrieving robot instance name</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_helper</span><span class="o">.</span><span class="n">init_robot_name</span><span class="p">(</span><span class="n">res</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">_helper</span><span class="o">.</span><span class="n">init_robust_mode</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_mode</span><span class="p">)</span>
+
+            <span class="c1"># Retrieving urgency threshold value</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_helper</span><span class="o">.</span><span class="n">robust_mode</span><span class="p">():</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_helper</span><span class="o">.</span><span class="n">init_urgency_threshold</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_manager</span><span class="o">.</span><span class="n">dataprop_ind</span><span class="p">(</span><span class="n">anm</span><span class="o">.</span><span class="n">URGENCY_THRESHOLD</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_helper</span><span class="o">.</span><span class="n">robot_name</span><span class="p">())))</span>
+
+            <span class="c1"># Update timestamp for initial room</span>
+            <span class="n">current_room</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_manager</span><span class="o">.</span><span class="n">objectprop_ind</span><span class="p">(</span><span class="n">anm</span><span class="o">.</span><span class="n">ISIN_PROP</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_helper</span><span class="o">.</span><span class="n">robot_name</span><span class="p">())[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="n">old_value</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_manager</span><span class="o">.</span><span class="n">dataprop_ind</span><span class="p">(</span><span class="n">anm</span><span class="o">.</span><span class="n">VISITED_AT</span><span class="p">,</span> <span class="n">current_room</span><span class="p">))</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_manager</span><span class="o">.</span><span class="n">replace_dataprop_ind</span><span class="p">(</span><span class="n">anm</span><span class="o">.</span><span class="n">VISITED_AT</span><span class="p">,</span> <span class="n">current_room</span><span class="p">,</span> <span class="n">anm</span><span class="o">.</span><span class="n">LONG_TYPE</span><span class="p">,</span> 
+                                                          <span class="nb">str</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">())),</span> <span class="nb">str</span><span class="p">(</span><span class="n">old_value</span><span class="p">))</span>
+
+            <span class="c1"># Log update if position tracking enabled</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_helper</span><span class="o">.</span><span class="n">track_position_required</span><span class="p">():</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_helper</span><span class="o">.</span><span class="n">append_room</span><span class="p">(</span><span class="n">current_room</span><span class="p">)</span>
+
+            <span class="n">rospy</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">anm</span><span class="o">.</span><span class="n">READY_TRANS</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">err_msg</span> <span class="o">=</span> <span class="s2">&quot;Could not find ontology file from the given path: &quot;</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ontology_filepath</span>
+            <span class="k">raise</span> <span class="n">rospy</span><span class="o">.</span><span class="n">ROSInitException</span><span class="p">(</span><span class="n">err_msg</span><span class="p">)</span></div></div>
+
+<div class="viewcode-block" id="Reasoning"><a class="viewcode-back" href="../../index.html#scripts.state_machine.Reasoning">[docs]</a><span class="k">class</span> <span class="nc">Reasoning</span><span class="p">(</span><span class="n">smach</span><span class="o">.</span><span class="n">State</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Class associated to the `REASONING` state in the smach finite state machine.</span>
+<span class="sd">    In this state the robot performs logic reasoning on the topological map and decides the target room for the next iteration. </span>
+<span class="sd">    </span>
+<span class="sd">    Attributes:</span>
+<span class="sd">        _helper (InterfaceHelper): Global helper needed to access constants defined at module level.</span>
+<span class="sd">        _manager (OntologyManager): Global ontology manager needed for dealing with ARMOR, accessible at module level.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">interface_helper</span><span class="p">,</span> <span class="n">ontology_manager</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_helper</span> <span class="o">=</span> <span class="n">interface_helper</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_manager</span> <span class="o">=</span> <span class="n">ontology_manager</span>
+        <span class="n">smach</span><span class="o">.</span><span class="n">State</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">outcomes</span><span class="o">=</span><span class="p">[</span><span class="n">anm</span><span class="o">.</span><span class="n">TARGET_CHOOSEN_TRANS</span><span class="p">,</span> <span class="n">anm</span><span class="o">.</span><span class="n">BATTERY_ALERT_TRANS</span><span class="p">],</span> 
+                                   <span class="n">output_keys</span><span class="o">=</span><span class="p">[</span><span class="n">anm</span><span class="o">.</span><span class="n">TARGET_ROOM_KEY</span><span class="p">,</span> <span class="n">anm</span><span class="o">.</span><span class="n">CURRENT_ROOM_KEY</span><span class="p">])</span>
+   
+<div class="viewcode-block" id="Reasoning.execute"><a class="viewcode-back" href="../../index.html#scripts.state_machine.Reasoning.execute">[docs]</a>    <span class="k">def</span> <span class="nf">execute</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">userdata</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Core function for the `REASONING` state.</span>
+<span class="sd">        After retrieving the reachable rooms at this step, if, among them there is one that is urgent (meaning that the time elapsed from the last visit of the robot is above the threshold) the robot goes there. </span>
+<span class="sd">        However, if the urgent rooms are more than one, the logic picks a random one among them.</span>
+<span class="sd">        In case of no urgent rooms, the robot prefers to stay on corridors, until a room becomes urgent or battery level gets too low.</span>
+<span class="sd">        In case of more corridors available, the robot gives priority to urgent ones and, if noone of them is such, it chooses randomly one to go to.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            userdata (Remapper): structure that stores data exchanged between states, here used to propagate the target room.</span>
+
+<span class="sd">        Raises: </span>
+<span class="sd">            rospy.ROSException: if no room is reachable starting from the current one.</span>
+<span class="sd">        </span>
+<span class="sd">        Returns:</span>
+<span class="sd">            str: One among the possible following states in the finite state machine (`PLANNING`, `MOVE_TO_RECHARGE`).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">rospy</span><span class="o">.</span><span class="n">loginfo</span><span class="p">(</span><span class="s1">&#39;Executing state Reasoning&#39;</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="n">anm</span><span class="o">.</span><span class="n">WARNING_COLOR</span> <span class="o">+</span> <span class="s2">&quot;Reasoning...&quot;</span> <span class="o">+</span> <span class="n">anm</span><span class="o">.</span><span class="n">STANDARD_COLOR</span><span class="p">)</span>
+
+        <span class="c1"># Update now field in the robot instance</span>
+        <span class="n">old_now</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_manager</span><span class="o">.</span><span class="n">dataprop_ind</span><span class="p">(</span><span class="n">anm</span><span class="o">.</span><span class="n">NOW_PROP</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_helper</span><span class="o">.</span><span class="n">robot_name</span><span class="p">()))</span>
+        <span class="n">new_now</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">())</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_manager</span><span class="o">.</span><span class="n">replace_dataprop_ind</span><span class="p">(</span><span class="n">anm</span><span class="o">.</span><span class="n">NOW_PROP</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_helper</span><span class="o">.</span><span class="n">robot_name</span><span class="p">(),</span> <span class="n">anm</span><span class="o">.</span><span class="n">LONG_TYPE</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">new_now</span><span class="p">),</span> <span class="nb">str</span><span class="p">(</span><span class="n">old_now</span><span class="p">))</span>
+
+        <span class="c1"># Reason on new data in the ontology and save it if necessary</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_manager</span><span class="o">.</span><span class="n">sync_reasoner</span><span class="p">()</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_helper</span><span class="o">.</span><span class="n">save_ontology</span><span class="p">():</span> 
+            <span class="bp">self</span><span class="o">.</span><span class="n">_manager</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_helper</span><span class="o">.</span><span class="n">ont_output_path</span><span class="p">())</span>
+
+        <span class="c1"># Retrieve current location</span>
+        <span class="n">current_room</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_manager</span><span class="o">.</span><span class="n">objectprop_ind</span><span class="p">(</span><span class="n">anm</span><span class="o">.</span><span class="n">ISIN_PROP</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_helper</span><span class="o">.</span><span class="n">robot_name</span><span class="p">())[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">userdata</span><span class="o">.</span><span class="n">current_room</span> <span class="o">=</span> <span class="n">current_room</span>
+
+        <span class="c1"># To make a transition choose a room among the available ones</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_helper</span><span class="o">.</span><span class="n">mutex</span><span class="o">.</span><span class="n">acquire</span><span class="p">()</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="c1"># If battery is too low go to recharge</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_helper</span><span class="o">.</span><span class="n">is_battery_low</span><span class="p">():</span>
+                <span class="k">return</span> <span class="n">anm</span><span class="o">.</span><span class="n">BATTERY_ALERT_TRANS</span>
+        <span class="k">finally</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_helper</span><span class="o">.</span><span class="n">mutex</span><span class="o">.</span><span class="n">release</span><span class="p">()</span> 
+    
+        <span class="c1"># Initialize empty vectors each time</span>
+        <span class="n">urgents</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">reachable_rooms</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">urgent_rooms</span> <span class="o">=</span> <span class="p">[]</span> 
+        <span class="n">urgent_corridors</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="c1"># Get reachable rooms from ontology</span>
+        <span class="n">reachable_rooms</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_manager</span><span class="o">.</span><span class="n">objectprop_ind</span><span class="p">(</span><span class="n">anm</span><span class="o">.</span><span class="n">CAN_REACH</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_helper</span><span class="o">.</span><span class="n">robot_name</span><span class="p">())</span>
+        
+        <span class="c1"># Check rooms and choose a random urgent room from the list, if any</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_helper</span><span class="o">.</span><span class="n">robust_mode</span><span class="p">():</span>
+            <span class="n">urgents</span> <span class="o">=</span> <span class="p">[</span><span class="n">r</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">reachable_rooms</span> <span class="k">if</span> <span class="p">(</span><span class="n">new_now</span> <span class="o">-</span> <span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_manager</span><span class="o">.</span><span class="n">dataprop_ind</span><span class="p">(</span><span class="n">anm</span><span class="o">.</span><span class="n">VISITED_AT</span><span class="p">,</span> <span class="n">r</span><span class="p">))</span> <span class="o">&gt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">_helper</span><span class="o">.</span><span class="n">urgency_threshold</span><span class="p">())]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">urgents</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_manager</span><span class="o">.</span><span class="n">filter_ind_by_class</span><span class="p">(</span><span class="n">reachable_rooms</span><span class="p">,</span> <span class="n">anm</span><span class="o">.</span><span class="n">URGENT_CLASS</span><span class="p">)</span>
+
+
+        <span class="c1"># Filter out corridors to avoid random choice considering them</span>
+        <span class="n">urgent_corridors</span><span class="p">,</span> <span class="n">urgent_rooms</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_manager</span><span class="o">.</span><span class="n">filter_ind_by_class</span><span class="p">(</span><span class="n">urgents</span><span class="p">,</span> <span class="n">anm</span><span class="o">.</span><span class="n">CORRIDOR_CLASS</span><span class="p">)</span>
+        
+        <span class="nb">print</span><span class="p">(</span><span class="n">anm</span><span class="o">.</span><span class="n">STATE_COLOR</span> <span class="o">+</span> <span class="s2">&quot; Current room = &quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">current_room</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot;; &quot;</span><span class="p">)</span> 
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot; Reachable rooms = &quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">reachable_rooms</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot;; &quot;</span> <span class="o">+</span> <span class="n">anm</span><span class="o">.</span><span class="n">STANDARD_COLOR</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="n">anm</span><span class="o">.</span><span class="n">STATE_COLOR</span> <span class="o">+</span> <span class="s2">&quot; Urgent ROOMs among them = &quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">urgent_rooms</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot;; &quot;</span> <span class="o">+</span> <span class="n">anm</span><span class="o">.</span><span class="n">STANDARD_COLOR</span><span class="p">)</span>
+
+        <span class="c1"># If there is one or more urgent rooms choose randomly one of them</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">urgent_rooms</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+
+            <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">            print(anm.DEBUG_COLOR)</span>
+<span class="sd">            print(&quot;urgent_rooms debug ===&quot;)</span>
+<span class="sd">            for r in urgent_rooms:</span>
+<span class="sd">                self._manager.sync_reasoner()</span>
+<span class="sd">                if self._helper.save_ontology(): </span>
+<span class="sd">                    self._manager.save(self._helper.ont_output_path())</span>
+<span class="sd">                now_value = int(self._manager.dataprop_ind(anm.NOW_PROP, self._helper.robot_name()))</span>
+<span class="sd">                visited_time = int(self._manager.dataprop_ind(anm.VISITED_AT, r))</span>
+<span class="sd">                elapsed = now_value - visited_time</span>
+<span class="sd">                print(&quot;r = &quot; + str(r) + &quot;; its visited time = &quot; + str(visited_time) + &quot;; with now = &quot; + str(now_value) + &quot;; with threshold: &quot; + str(self._manager.dataprop_ind(&#39;urgencyThreshold&#39;, self._helper.robot_name())) + &quot; and elapsed = &quot; + str(elapsed))</span>
+<span class="sd">                print(&quot;is urgent check: &quot; + str(self._manager.filter_ind_by_class([r], anm.URGENT_CLASS)[0]))</span>
+<span class="sd">            print(&quot;urgent_rooms debug ===&quot;)</span>
+<span class="sd">            print(anm.STANDARD_COLOR)</span>
+<span class="sd">            &quot;&quot;&quot;</span>
+
+
+            <span class="n">userdata</span><span class="o">.</span><span class="n">target_room</span> <span class="o">=</span> <span class="n">urgent_rooms</span><span class="p">[</span><span class="n">random</span><span class="o">.</span><span class="n">randint</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="nb">len</span><span class="p">(</span><span class="n">urgent_rooms</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span><span class="p">)]</span>
+            <span class="k">return</span> <span class="n">anm</span><span class="o">.</span><span class="n">TARGET_CHOOSEN_TRANS</span>
+
+        <span class="c1"># If no urgent rooms, check for corridors </span>
+        <span class="n">corridors_available</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_manager</span><span class="o">.</span><span class="n">filter_ind_by_class</span><span class="p">(</span><span class="n">reachable_rooms</span><span class="p">,</span> <span class="n">anm</span><span class="o">.</span><span class="n">CORRIDOR_CLASS</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">corridors_available</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+
+            <span class="nb">print</span><span class="p">(</span><span class="n">anm</span><span class="o">.</span><span class="n">STATE_COLOR</span> <span class="o">+</span> <span class="s2">&quot; Reachable CORRIDORs  = &quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">corridors_available</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot;; &quot;</span> <span class="o">+</span> <span class="n">anm</span><span class="o">.</span><span class="n">STANDARD_COLOR</span><span class="p">)</span>
+            <span class="nb">print</span><span class="p">(</span><span class="n">anm</span><span class="o">.</span><span class="n">STATE_COLOR</span> <span class="o">+</span> <span class="s2">&quot; Urgent CORRIDORs among them = &quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">urgent_corridors</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot;; &quot;</span> <span class="o">+</span> <span class="n">anm</span><span class="o">.</span><span class="n">STANDARD_COLOR</span><span class="p">)</span>
+
+            <span class="c1"># If there is one or more urgent corridors, give priority to them</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">urgent_corridors</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+
+                <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">                print(anm.DEBUG_COLOR)</span>
+<span class="sd">                print(&quot;urgent_corridors debug ===&quot;)</span>
+<span class="sd">                for r in urgent_corridors:</span>
+<span class="sd">                    self._manager.sync_reasoner()</span>
+<span class="sd">                    if self._helper.save_ontology(): </span>
+<span class="sd">                        self._manager.save(self._helper.ont_output_path())</span>
+<span class="sd">                    now_value = int(self._manager.dataprop_ind(anm.NOW_PROP, self._helper.robot_name()))</span>
+<span class="sd">                    visited_time = int(self._manager.dataprop_ind(anm.VISITED_AT, r))</span>
+<span class="sd">                    elapsed = now_value - visited_time</span>
+<span class="sd">                    print(&quot;r = &quot; + str(r) + &quot;; its visited time = &quot; + str(visited_time) + &quot;; with now = &quot; + str(now_value) + &quot;; with threshold: &quot; + str(self._manager.dataprop_ind(&#39;urgencyThreshold&#39;, self._helper.robot_name())) + &quot; and elapsed = &quot; + str(elapsed))</span>
+<span class="sd">                    print(&quot;is urgent check: &quot; + str(self._manager.filter_ind_by_class([r], anm.URGENT_CLASS)[0]))</span>
+<span class="sd">                print(&quot;urgent_corridors debug ===&quot;)</span>
+<span class="sd">                print(anm.STANDARD_COLOR)</span>
+<span class="sd">                &quot;&quot;&quot;</span>
+
+                <span class="n">userdata</span><span class="o">.</span><span class="n">target_room</span> <span class="o">=</span> <span class="n">urgent_corridors</span><span class="p">[</span><span class="n">random</span><span class="o">.</span><span class="n">randint</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="nb">len</span><span class="p">(</span><span class="n">urgent_corridors</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span><span class="p">)]</span>
+                <span class="k">return</span> <span class="n">anm</span><span class="o">.</span><span class="n">TARGET_CHOOSEN_TRANS</span>
+
+            <span class="c1"># Otherwise choose randomly a corridor from the list</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">userdata</span><span class="o">.</span><span class="n">target_room</span> <span class="o">=</span> <span class="n">corridors_available</span><span class="p">[</span><span class="n">random</span><span class="o">.</span><span class="n">randint</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="nb">len</span><span class="p">(</span><span class="n">corridors_available</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span><span class="p">)]</span>
+                <span class="k">return</span> <span class="n">anm</span><span class="o">.</span><span class="n">TARGET_CHOOSEN_TRANS</span>
+        
+        <span class="c1"># If there is no reachable corridor and at least 1 not urgent room, set next target to a random room by default</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">corridors_available</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">reachable_rooms</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">userdata</span><span class="o">.</span><span class="n">target_room</span> <span class="o">=</span> <span class="n">reachable_rooms</span><span class="p">[</span><span class="n">random</span><span class="o">.</span><span class="n">randint</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">reachable_rooms</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span><span class="p">)]</span> 
+            <span class="k">return</span> <span class="n">anm</span><span class="o">.</span><span class="n">TARGET_CHOOSEN_TRANS</span>
+
+        <span class="c1"># If no reachable room from the current one throw an error</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">err_msg</span> <span class="o">=</span> <span class="s2">&quot;No reachable rooms&quot;</span>
+            <span class="k">raise</span> <span class="n">rospy</span><span class="o">.</span><span class="n">ROSException</span><span class="p">(</span><span class="n">err_msg</span><span class="p">)</span></div></div>
+
+<div class="viewcode-block" id="Planning"><a class="viewcode-back" href="../../index.html#scripts.state_machine.Planning">[docs]</a><span class="k">class</span> <span class="nc">Planning</span><span class="p">(</span><span class="n">smach</span><span class="o">.</span><span class="n">State</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Class associated to the `PLANNING` state in the smach finite state machine.</span>
+<span class="sd">    In this state the robot asks the planner for a plan to reach the target room. </span>
+
+<span class="sd">    Attributes:</span>
+<span class="sd">        _helper (InterfaceHelper): Global helper needed to access constants defined at module level.</span>
+<span class="sd">        _manager (OntologyManager): Global ontology manager needed for dealing with ARMOR, accessible at module level.</span>
+<span class="sd">        _env_size (list): Size of the 2D environment in which the robot moves.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">interface_helper</span><span class="p">,</span> <span class="n">ontology_manager</span><span class="p">,</span> <span class="n">env_size</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_helper</span> <span class="o">=</span> <span class="n">interface_helper</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_manager</span> <span class="o">=</span> <span class="n">ontology_manager</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_env_size</span> <span class="o">=</span> <span class="n">env_size</span>
+        <span class="n">smach</span><span class="o">.</span><span class="n">State</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">outcomes</span><span class="o">=</span><span class="p">[</span><span class="n">anm</span><span class="o">.</span><span class="n">PLAN_READY_TRANS</span><span class="p">,</span> <span class="n">anm</span><span class="o">.</span><span class="n">BATTERY_ALERT_TRANS</span><span class="p">],</span> 
+                                   <span class="n">input_keys</span><span class="o">=</span><span class="p">[</span><span class="n">anm</span><span class="o">.</span><span class="n">TARGET_ROOM_KEY</span><span class="p">,</span> <span class="n">anm</span><span class="o">.</span><span class="n">CURRENT_ROOM_KEY</span><span class="p">],</span> 
+                                   <span class="n">output_keys</span><span class="o">=</span><span class="p">[</span><span class="n">anm</span><span class="o">.</span><span class="n">PLAN_TO_ROOM_KEY</span><span class="p">,</span> <span class="n">anm</span><span class="o">.</span><span class="n">TARGET_ROOM_KEY</span><span class="p">,</span> <span class="n">anm</span><span class="o">.</span><span class="n">CURRENT_ROOM_KEY</span><span class="p">])</span>
+   
+<div class="viewcode-block" id="Planning.execute"><a class="viewcode-back" href="../../index.html#scripts.state_machine.Planning.execute">[docs]</a>    <span class="k">def</span> <span class="nf">execute</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">userdata</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Core function for the `PLANNING` state.</span>
+<span class="sd">        The robot sends a goal to the server giving random coordinates in the environment to simulate planner processing (placeholder for future development).</span>
+<span class="sd">        </span>
+<span class="sd">        Args:</span>
+<span class="sd">            userdata (Remapper): structure that stores data exchanged between states, here used to propagate the current and target room as well as the generated list of waypoints.</span>
+<span class="sd">        </span>
+<span class="sd">        Returns:</span>
+<span class="sd">            str: One among the possible following states in the finite state machine (`MOVE_TO_GOAL`, `MOVE_TO_RECHARGE`).    </span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">rospy</span><span class="o">.</span><span class="n">loginfo</span><span class="p">(</span><span class="s1">&#39;Executing state Planning&#39;</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="n">anm</span><span class="o">.</span><span class="n">WARNING_COLOR</span> <span class="o">+</span> <span class="s2">&quot;Planning path from current room &quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">userdata</span><span class="o">.</span><span class="n">current_room</span><span class="p">)</span> <span class="o">+</span> 
+              <span class="s2">&quot; to new target &quot;</span><span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">userdata</span><span class="o">.</span><span class="n">target_room</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot;...&quot;</span> <span class="o">+</span> <span class="n">anm</span><span class="o">.</span><span class="n">STANDARD_COLOR</span><span class="p">)</span>
+
+        <span class="c1"># Random goal provided for planning</span>
+        <span class="n">goal</span> <span class="o">=</span> <span class="n">PlanGoal</span><span class="p">(</span><span class="n">Point</span><span class="p">(</span><span class="n">x</span><span class="o">=</span><span class="n">random</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_env_size</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> 
+                              <span class="n">y</span><span class="o">=</span><span class="n">random</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_env_size</span><span class="p">[</span><span class="mi">1</span><span class="p">])))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_helper</span><span class="o">.</span><span class="n">planner_client</span><span class="o">.</span><span class="n">send_goal</span><span class="p">(</span><span class="n">goal</span><span class="p">)</span>
+
+        <span class="c1"># To make a transition wait for the plan ready or battery alert</span>
+        <span class="k">while</span> <span class="ow">not</span> <span class="n">rospy</span><span class="o">.</span><span class="n">is_shutdown</span><span class="p">():</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_helper</span><span class="o">.</span><span class="n">mutex</span><span class="o">.</span><span class="n">acquire</span><span class="p">()</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_helper</span><span class="o">.</span><span class="n">is_battery_low</span><span class="p">():</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_helper</span><span class="o">.</span><span class="n">planner_client</span><span class="o">.</span><span class="n">cancel_goals</span><span class="p">()</span>
+                    <span class="k">return</span> <span class="n">anm</span><span class="o">.</span><span class="n">BATTERY_ALERT_TRANS</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_helper</span><span class="o">.</span><span class="n">planner_client</span><span class="o">.</span><span class="n">is_done</span><span class="p">():</span>
+                    <span class="n">userdata</span><span class="o">.</span><span class="n">plan_to_room</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_helper</span><span class="o">.</span><span class="n">planner_client</span><span class="o">.</span><span class="n">get_results</span><span class="p">()</span><span class="o">.</span><span class="n">via_points</span>
+                    <span class="k">return</span> <span class="n">anm</span><span class="o">.</span><span class="n">PLAN_READY_TRANS</span>
+            <span class="k">finally</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_helper</span><span class="o">.</span><span class="n">mutex</span><span class="o">.</span><span class="n">release</span><span class="p">()</span>
+            <span class="n">rospy</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mf">.3</span><span class="p">)</span></div></div>
+
+<div class="viewcode-block" id="Move_to_goal"><a class="viewcode-back" href="../../index.html#scripts.state_machine.Move_to_goal">[docs]</a><span class="k">class</span> <span class="nc">Move_to_goal</span><span class="p">(</span><span class="n">smach</span><span class="o">.</span><span class="n">State</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Class associated to the `MOVE_TO_GOAL` state in the smach finite state machine.</span>
+<span class="sd">    In this state the robot executes the plan, simulating actuators motion over the given waypoints through controller server random processing. </span>
+<span class="sd">    </span>
+<span class="sd">    Attributes:</span>
+<span class="sd">        _helper (InterfaceHelper): Global helper needed to access constants defined at module level.</span>
+<span class="sd">        _manager (OntologyManager): Global ontology manager needed for dealing with ARMOR, accessible at module level.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">interface_helper</span><span class="p">,</span> <span class="n">ontology_manager</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_helper</span> <span class="o">=</span> <span class="n">interface_helper</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_manager</span> <span class="o">=</span> <span class="n">ontology_manager</span>
+        <span class="n">smach</span><span class="o">.</span><span class="n">State</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">outcomes</span><span class="o">=</span><span class="p">[</span><span class="n">anm</span><span class="o">.</span><span class="n">BATTERY_ALERT_TRANS</span><span class="p">,</span> <span class="n">anm</span><span class="o">.</span><span class="n">ROOM_REACHED_TRANS</span><span class="p">],</span> 
+                                   <span class="n">input_keys</span><span class="o">=</span><span class="p">[</span><span class="n">anm</span><span class="o">.</span><span class="n">PLAN_TO_ROOM_KEY</span><span class="p">,</span> <span class="n">anm</span><span class="o">.</span><span class="n">TARGET_ROOM_KEY</span><span class="p">,</span> <span class="n">anm</span><span class="o">.</span><span class="n">CURRENT_ROOM_KEY</span><span class="p">],</span> 
+                                   <span class="n">output_keys</span><span class="o">=</span><span class="p">[</span><span class="n">anm</span><span class="o">.</span><span class="n">CURRENT_ROOM_KEY</span><span class="p">])</span>
+   
+<div class="viewcode-block" id="Move_to_goal.execute"><a class="viewcode-back" href="../../index.html#scripts.state_machine.Move_to_goal.execute">[docs]</a>    <span class="k">def</span> <span class="nf">execute</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">userdata</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Core function for the `MOVE_TO_GOAL` state.</span>
+<span class="sd">        The robot sends a goal to the controller server that gives random control commands (placeholder for future development).</span>
+<span class="sd">        </span>
+<span class="sd">        Args:</span>
+<span class="sd">            userdata (Remapper): structure that stores data exchanged between states, here used to propagate the label of the current room.</span>
+<span class="sd">        </span>
+<span class="sd">        Returns:</span>
+<span class="sd">            str: One among the possible following states in the finite state machine (`MONITOR_ROOM`, `MOVE_TO_RECHARGE`).    </span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">rospy</span><span class="o">.</span><span class="n">loginfo</span><span class="p">(</span><span class="s1">&#39;Executing state Move_to_goal&#39;</span><span class="p">)</span>
+
+        <span class="c1"># Control request corresponding to the provided plan</span>
+        <span class="n">control_req</span> <span class="o">=</span> <span class="n">ControlGoal</span><span class="p">(</span><span class="n">via_points</span><span class="o">=</span><span class="n">userdata</span><span class="o">.</span><span class="n">plan_to_room</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_helper</span><span class="o">.</span><span class="n">controller_client</span><span class="o">.</span><span class="n">send_goal</span><span class="p">(</span><span class="n">control_req</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="n">anm</span><span class="o">.</span><span class="n">WARNING_COLOR</span> <span class="o">+</span> <span class="s2">&quot;Moving from current room &quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">userdata</span><span class="o">.</span><span class="n">current_room</span><span class="p">)</span> <span class="o">+</span> 
+              <span class="s2">&quot; to new target &quot;</span><span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">userdata</span><span class="o">.</span><span class="n">target_room</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot;...&quot;</span> <span class="o">+</span> <span class="n">anm</span><span class="o">.</span><span class="n">STANDARD_COLOR</span><span class="p">)</span>
+
+        <span class="c1"># To make a transition wait for the plan executed or battery alert</span>
+        <span class="k">while</span> <span class="ow">not</span> <span class="n">rospy</span><span class="o">.</span><span class="n">is_shutdown</span><span class="p">():</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_helper</span><span class="o">.</span><span class="n">mutex</span><span class="o">.</span><span class="n">acquire</span><span class="p">()</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_helper</span><span class="o">.</span><span class="n">is_battery_low</span><span class="p">():</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_helper</span><span class="o">.</span><span class="n">controller_client</span><span class="o">.</span><span class="n">cancel_goals</span><span class="p">()</span>
+                    <span class="k">return</span> <span class="n">anm</span><span class="o">.</span><span class="n">BATTERY_ALERT_TRANS</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_helper</span><span class="o">.</span><span class="n">controller_client</span><span class="o">.</span><span class="n">is_done</span><span class="p">():</span>
+
+                    <span class="c1"># Update robot&#39;s position in the ontology</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_manager</span><span class="o">.</span><span class="n">replace_objectprop_ind</span><span class="p">(</span><span class="n">anm</span><span class="o">.</span><span class="n">ISIN_PROP</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_helper</span><span class="o">.</span><span class="n">robot_name</span><span class="p">(),</span> 
+                                                            <span class="n">userdata</span><span class="o">.</span><span class="n">target_room</span><span class="p">,</span> <span class="n">userdata</span><span class="o">.</span><span class="n">current_room</span><span class="p">)</span>
+                    
+                    <span class="c1"># Reason on new data in the ontology and save it if necessary</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_manager</span><span class="o">.</span><span class="n">sync_reasoner</span><span class="p">()</span>
+                    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_helper</span><span class="o">.</span><span class="n">save_ontology</span><span class="p">():</span> 
+                        <span class="bp">self</span><span class="o">.</span><span class="n">_manager</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_helper</span><span class="o">.</span><span class="n">ont_output_path</span><span class="p">())</span>
+
+                    <span class="c1"># Log update if position tracking enabled</span>
+                    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_helper</span><span class="o">.</span><span class="n">track_position_required</span><span class="p">():</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">_helper</span><span class="o">.</span><span class="n">append_room</span><span class="p">(</span><span class="n">userdata</span><span class="o">.</span><span class="n">target_room</span><span class="p">)</span>
+
+                    <span class="c1"># Update information exchanged by smach states</span>
+                    <span class="n">userdata</span><span class="o">.</span><span class="n">current_room</span> <span class="o">=</span> <span class="n">userdata</span><span class="o">.</span><span class="n">target_room</span>
+                    <span class="k">return</span> <span class="n">anm</span><span class="o">.</span><span class="n">ROOM_REACHED_TRANS</span>
+            <span class="k">finally</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_helper</span><span class="o">.</span><span class="n">mutex</span><span class="o">.</span><span class="n">release</span><span class="p">()</span>
+
+            <span class="n">rospy</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mf">.3</span><span class="p">)</span></div></div>
+
+<div class="viewcode-block" id="Monitor_room"><a class="viewcode-back" href="../../index.html#scripts.state_machine.Monitor_room">[docs]</a><span class="k">class</span> <span class="nc">Monitor_room</span><span class="p">(</span><span class="n">smach</span><span class="o">.</span><span class="n">State</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Class associated to the `MONITOR_ROOM` state in the smach finite state machine.</span>
+<span class="sd">    In this state the robot simulates the execution of a monitoring task in the current room for a given amount of time (it can be a placeholder for further development).</span>
+<span class="sd">    </span>
+<span class="sd">    Attributes:</span>
+<span class="sd">        _helper (InterfaceHelper): Global helper needed to access constants defined at module level.</span>
+<span class="sd">        _manager (OntologyManager): Global ontology manager needed for dealing with ARMOR, accessible at module level.</span>
+<span class="sd">        _monitoring_duration (int): Amount of seconds to be spent monitoring the room.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">interface_helper</span><span class="p">,</span> <span class="n">ontology_manager</span><span class="p">,</span> <span class="n">monitoring_duration</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_helper</span> <span class="o">=</span> <span class="n">interface_helper</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_manager</span> <span class="o">=</span> <span class="n">ontology_manager</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_monitoring_duration</span> <span class="o">=</span> <span class="n">monitoring_duration</span>
+        <span class="n">smach</span><span class="o">.</span><span class="n">State</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">outcomes</span><span class="o">=</span><span class="p">[</span><span class="n">anm</span><span class="o">.</span><span class="n">BATTERY_ALERT_TRANS</span><span class="p">,</span> <span class="n">anm</span><span class="o">.</span><span class="n">NEXT_MOVE_TRANS</span><span class="p">],</span>
+                                   <span class="n">input_keys</span><span class="o">=</span><span class="p">[</span><span class="n">anm</span><span class="o">.</span><span class="n">CURRENT_ROOM_KEY</span><span class="p">],</span> <span class="n">output_keys</span><span class="o">=</span><span class="p">[</span><span class="n">anm</span><span class="o">.</span><span class="n">CURRENT_ROOM_KEY</span><span class="p">])</span>
+   
+<div class="viewcode-block" id="Monitor_room.execute"><a class="viewcode-back" href="../../index.html#scripts.state_machine.Monitor_room.execute">[docs]</a>    <span class="k">def</span> <span class="nf">execute</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">userdata</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Core function for the `MONITOR_ROOM` state.</span>
+<span class="sd">        If the battery level is high enough, the robot simply waits there for the given amount of time and goes to `REASONING` state. </span>
+<span class="sd">        </span>
+<span class="sd">        Args:</span>
+<span class="sd">            userdata (Remapper): structure that stores data exchanged between states, here used to propagate the label of the current room.</span>
+<span class="sd">        </span>
+<span class="sd">        Returns:</span>
+<span class="sd">            str: One among the possible following states in the finite state machine (`REASONING`, `MOVE_TO_RECHARGE`).    </span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">rospy</span><span class="o">.</span><span class="n">loginfo</span><span class="p">(</span><span class="s1">&#39;Executing state Monitor_room&#39;</span><span class="p">)</span>
+        <span class="n">arrival_time</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">())</span>
+        <span class="nb">print</span><span class="p">(</span><span class="n">anm</span><span class="o">.</span><span class="n">WARNING_COLOR</span> <span class="o">+</span> <span class="s2">&quot;Monitoring room &quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">userdata</span><span class="o">.</span><span class="n">current_room</span><span class="p">)</span> <span class="o">+</span> 
+              <span class="s2">&quot;...&quot;</span> <span class="o">+</span> <span class="n">anm</span><span class="o">.</span><span class="n">STANDARD_COLOR</span><span class="p">)</span>
+
+        <span class="k">while</span> <span class="ow">not</span> <span class="n">rospy</span><span class="o">.</span><span class="n">is_shutdown</span><span class="p">():</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_helper</span><span class="o">.</span><span class="n">mutex</span><span class="o">.</span><span class="n">acquire</span><span class="p">()</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_helper</span><span class="o">.</span><span class="n">is_battery_low</span><span class="p">():</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_helper</span><span class="o">.</span><span class="n">planner_client</span><span class="o">.</span><span class="n">cancel_goals</span><span class="p">()</span>
+                    <span class="k">return</span> <span class="n">anm</span><span class="o">.</span><span class="n">BATTERY_ALERT_TRANS</span>
+
+                <span class="c1"># As long as the elapsed time is higher than the given duration, leave this state</span>
+                <span class="k">if</span> <span class="nb">int</span><span class="p">(</span><span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">())</span> <span class="o">-</span> <span class="n">arrival_time</span> <span class="o">&gt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">_monitoring_duration</span><span class="p">:</span>
+
+                    <span class="c1"># Before leaving the room, visited time property in the ontology is updated</span>
+                    <span class="n">old_value</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_manager</span><span class="o">.</span><span class="n">dataprop_ind</span><span class="p">(</span><span class="n">anm</span><span class="o">.</span><span class="n">VISITED_AT</span><span class="p">,</span> <span class="n">userdata</span><span class="o">.</span><span class="n">current_room</span><span class="p">))</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_manager</span><span class="o">.</span><span class="n">replace_dataprop_ind</span><span class="p">(</span><span class="n">anm</span><span class="o">.</span><span class="n">VISITED_AT</span><span class="p">,</span> <span class="n">userdata</span><span class="o">.</span><span class="n">current_room</span><span class="p">,</span> <span class="n">anm</span><span class="o">.</span><span class="n">LONG_TYPE</span><span class="p">,</span> 
+                                                          <span class="nb">str</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">())),</span> <span class="nb">str</span><span class="p">(</span><span class="n">old_value</span><span class="p">))</span>
+                    <span class="c1">#print(&quot;Replacing visitedAt for &quot; + str(userdata.current_room) + &quot; (from &quot; + str(old_value) + &quot; to &quot; + str(int(time.time())) + &quot;)&quot;)</span>
+                    
+                    <span class="c1"># Reason on new data in the ontology and save it if necessary</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_manager</span><span class="o">.</span><span class="n">sync_reasoner</span><span class="p">()</span>
+                    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_helper</span><span class="o">.</span><span class="n">save_ontology</span><span class="p">():</span> 
+                        <span class="bp">self</span><span class="o">.</span><span class="n">_manager</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_helper</span><span class="o">.</span><span class="n">ont_output_path</span><span class="p">())</span>
+
+                    <span class="k">return</span> <span class="n">anm</span><span class="o">.</span><span class="n">NEXT_MOVE_TRANS</span>
+            <span class="k">finally</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_helper</span><span class="o">.</span><span class="n">mutex</span><span class="o">.</span><span class="n">release</span><span class="p">()</span>
+
+            <span class="n">rospy</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mf">.3</span><span class="p">)</span></div></div>
+     
+<div class="viewcode-block" id="Move_to_recharge"><a class="viewcode-back" href="../../index.html#scripts.state_machine.Move_to_recharge">[docs]</a><span class="k">class</span> <span class="nc">Move_to_recharge</span><span class="p">(</span><span class="n">smach</span><span class="o">.</span><span class="n">State</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Class associated to the `MOVE_TO_RECHARGE` state in the smach finite state machine.</span>
+<span class="sd">    In this state the robot keeps moving randomly on corridors only until it can reach the recharging base.</span>
+
+<span class="sd">    Note:</span>
+<span class="sd">        Since each room with at least two doors is considered as a corridor, only the peripheral rooms are not considered such. </span>
+<span class="sd">        This fact allows to consider valid this approach and guarantees, without any further assumption on the topological map, that after a large enough amount of time, the target room will be reached.</span>
+<span class="sd">    </span>
+<span class="sd">    Attributes:</span>
+<span class="sd">        _helper (InterfaceHelper): Global helper needed to access constants defined at module level.</span>
+<span class="sd">        _manager (OntologyManager): Global ontology manager needed for dealing with ARMOR, accessible at module level.</span>
+<span class="sd">        _env_size (list): Size of the 2D environment in which the robot moves.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">interface_helper</span><span class="p">,</span> <span class="n">ontology_manager</span><span class="p">,</span> <span class="n">env_size</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_helper</span> <span class="o">=</span> <span class="n">interface_helper</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_manager</span> <span class="o">=</span> <span class="n">ontology_manager</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_env_size</span> <span class="o">=</span> <span class="n">env_size</span>
+        <span class="n">smach</span><span class="o">.</span><span class="n">State</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">outcomes</span><span class="o">=</span><span class="p">[</span><span class="n">anm</span><span class="o">.</span><span class="n">AT_CHARGING_BASE_TRANS</span><span class="p">],</span>
+                                   <span class="n">input_keys</span><span class="o">=</span><span class="p">[</span><span class="n">anm</span><span class="o">.</span><span class="n">CURRENT_ROOM_KEY</span><span class="p">])</span>
+   
+<div class="viewcode-block" id="Move_to_recharge.execute"><a class="viewcode-back" href="../../index.html#scripts.state_machine.Move_to_recharge.execute">[docs]</a>    <span class="k">def</span> <span class="nf">execute</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">userdata</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Core function for the `MOVE_TO_RECHARGE` state.</span>
+<span class="sd">        The robot decides the target and executes both planning and controlling steps, evaluating the new position iteratively. </span>
+<span class="sd">        It stops changing room only and only if it is in room &#39;E&#39; - which presence in the ontology is taken for granted as it is stated in the requirements.</span>
+<span class="sd">        </span>
+<span class="sd">        Args:</span>
+<span class="sd">            userdata (Remapper): structure that stores data exchanged between states, here used to propagate the label of the current room.</span>
+<span class="sd">        </span>
+<span class="sd">        Returns:</span>
+<span class="sd">            str: Following state in the finite state machine (`RECHARGE`).  </span>
+<span class="sd">        </span>
+<span class="sd">        Note: </span>
+<span class="sd">            This function incorporates all the logic to move across the map, including planning and controller steps. </span>
+<span class="sd">            This choice improves readibility and makes easy understanding the logic flow, but introduces code duplication.  </span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">rospy</span><span class="o">.</span><span class="n">loginfo</span><span class="p">(</span><span class="s1">&#39;Executing state Move_to_recharge&#39;</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="n">anm</span><span class="o">.</span><span class="n">LOW_BATTERY_COLOR</span> <span class="o">+</span> <span class="s2">&quot; Low battery alert &quot;</span> <span class="o">+</span> <span class="n">anm</span><span class="o">.</span><span class="n">STANDARD_COLOR</span><span class="p">)</span>
+
+        <span class="c1"># Current room provided by all processing states as output key</span>
+        <span class="n">current_room</span> <span class="o">=</span> <span class="n">userdata</span><span class="o">.</span><span class="n">current_room</span> 
+ 
+        <span class="k">while</span> <span class="ow">not</span> <span class="n">rospy</span><span class="o">.</span><span class="n">is_shutdown</span><span class="p">():</span>
+
+            <span class="c1"># If the reached room is the recharging room change state</span>
+            <span class="k">if</span> <span class="n">current_room</span> <span class="o">==</span> <span class="n">anm</span><span class="o">.</span><span class="n">RECHARGE_ROOM</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">anm</span><span class="o">.</span><span class="n">AT_CHARGING_BASE_TRANS</span>
+
+            <span class="c1"># Get reachable rooms from ontology</span>
+            <span class="n">reachable_rooms</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_manager</span><span class="o">.</span><span class="n">objectprop_ind</span><span class="p">(</span><span class="n">anm</span><span class="o">.</span><span class="n">CAN_REACH</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_helper</span><span class="o">.</span><span class="n">robot_name</span><span class="p">())</span>
+            <span class="n">target_room</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>
+
+            <span class="c1"># if &#39;E&#39; reachable go there and return AT_CHARGING_BASE_TRANS</span>
+            <span class="k">if</span> <span class="n">anm</span><span class="o">.</span><span class="n">RECHARGE_ROOM</span> <span class="ow">in</span> <span class="n">reachable_rooms</span><span class="p">:</span>
+                <span class="n">target_room</span> <span class="o">=</span> <span class="n">anm</span><span class="o">.</span><span class="n">RECHARGE_ROOM</span>
+
+            <span class="c1"># Otherwise choose a random corridor from that and repeat</span>
+            <span class="k">else</span><span class="p">:</span> 
+                <span class="n">corridors_available</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_manager</span><span class="o">.</span><span class="n">filter_ind_by_class</span><span class="p">(</span><span class="n">reachable_rooms</span><span class="p">,</span> <span class="n">anm</span><span class="o">.</span><span class="n">CORRIDOR_CLASS</span><span class="p">)</span>
+
+                <span class="nb">print</span><span class="p">(</span><span class="n">anm</span><span class="o">.</span><span class="n">STATE_COLOR</span> <span class="o">+</span> <span class="s2">&quot; Current room = &quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">current_room</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot;;</span><span class="se">\n</span><span class="s2">Reachable rooms = &quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">reachable_rooms</span><span class="p">)</span> <span class="o">+</span> 
+                        <span class="s2">&quot;;</span><span class="se">\n</span><span class="s2"> Corridors available = &quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">corridors_available</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot; &quot;</span> <span class="o">+</span> <span class="n">anm</span><span class="o">.</span><span class="n">STANDARD_COLOR</span><span class="p">)</span>
+
+                <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">corridors_available</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="n">target_room</span> <span class="o">=</span> <span class="n">corridors_available</span><span class="p">[</span><span class="n">random</span><span class="o">.</span><span class="n">randint</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="nb">len</span><span class="p">(</span><span class="n">corridors_available</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span><span class="p">)]</span>
+
+            <span class="nb">print</span><span class="p">(</span><span class="n">anm</span><span class="o">.</span><span class="n">WARNING_COLOR</span> <span class="o">+</span> <span class="s2">&quot;Going from &quot;</span> <span class="o">+</span> <span class="n">current_room</span> <span class="o">+</span> <span class="s2">&quot; to &quot;</span> <span class="o">+</span> <span class="n">target_room</span> <span class="o">+</span> <span class="s2">&quot;...&quot;</span> <span class="o">+</span> <span class="n">anm</span><span class="o">.</span><span class="n">STANDARD_COLOR</span><span class="p">)</span>
+
+            <span class="c1"># Plan to that target</span>
+            <span class="n">goal</span> <span class="o">=</span> <span class="n">PlanGoal</span><span class="p">(</span><span class="n">Point</span><span class="p">(</span><span class="n">x</span><span class="o">=</span><span class="n">random</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_env_size</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="n">y</span><span class="o">=</span><span class="n">random</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_env_size</span><span class="p">[</span><span class="mi">1</span><span class="p">])))</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_helper</span><span class="o">.</span><span class="n">planner_client</span><span class="o">.</span><span class="n">send_goal</span><span class="p">(</span><span class="n">goal</span><span class="p">)</span>
+            <span class="k">while</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_helper</span><span class="o">.</span><span class="n">planner_client</span><span class="o">.</span><span class="n">is_done</span><span class="p">():</span>
+                <span class="n">rospy</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mf">.3</span><span class="p">)</span>
+            <span class="n">plan_to_room</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_helper</span><span class="o">.</span><span class="n">planner_client</span><span class="o">.</span><span class="n">get_results</span><span class="p">()</span><span class="o">.</span><span class="n">via_points</span>
+
+            <span class="c1"># Execution of control commands corresponding to the provided plan</span>
+            <span class="n">control_req</span> <span class="o">=</span> <span class="n">ControlGoal</span><span class="p">(</span><span class="n">via_points</span><span class="o">=</span><span class="n">plan_to_room</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_helper</span><span class="o">.</span><span class="n">controller_client</span><span class="o">.</span><span class="n">send_goal</span><span class="p">(</span><span class="n">control_req</span><span class="p">)</span>
+            <span class="k">while</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_helper</span><span class="o">.</span><span class="n">controller_client</span><span class="o">.</span><span class="n">is_done</span><span class="p">():</span>
+                <span class="n">rospy</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mf">.3</span><span class="p">)</span>
+
+            <span class="c1"># When done update robot&#39;s position in the ontology</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_manager</span><span class="o">.</span><span class="n">replace_objectprop_ind</span><span class="p">(</span><span class="n">anm</span><span class="o">.</span><span class="n">ISIN_PROP</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_helper</span><span class="o">.</span><span class="n">robot_name</span><span class="p">(),</span> 
+                                                    <span class="n">target_room</span><span class="p">,</span> <span class="n">current_room</span><span class="p">)</span>
+
+            <span class="c1"># Reason on new data in the ontology and save it if necessary</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_manager</span><span class="o">.</span><span class="n">sync_reasoner</span><span class="p">()</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_helper</span><span class="o">.</span><span class="n">save_ontology</span><span class="p">():</span> 
+                <span class="bp">self</span><span class="o">.</span><span class="n">_manager</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_helper</span><span class="o">.</span><span class="n">ont_output_path</span><span class="p">())</span>
+
+            <span class="n">current_room</span> <span class="o">=</span> <span class="n">target_room</span>
+
+            <span class="c1"># Log update if position tracking enabled</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_helper</span><span class="o">.</span><span class="n">track_position_required</span><span class="p">():</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_helper</span><span class="o">.</span><span class="n">append_room</span><span class="p">(</span><span class="n">current_room</span><span class="p">)</span>
+
+            <span class="n">rospy</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mf">.3</span><span class="p">)</span></div></div>
+
+<div class="viewcode-block" id="Recharge"><a class="viewcode-back" href="../../index.html#scripts.state_machine.Recharge">[docs]</a><span class="k">class</span> <span class="nc">Recharge</span><span class="p">(</span><span class="n">smach</span><span class="o">.</span><span class="n">State</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Class associated to the `RECHARGE` state in the smach finite state machine.</span>
+<span class="sd">    In this state the robot waits for its battery to get fully recharged. </span>
+<span class="sd">    </span>
+<span class="sd">    Attributes:</span>
+<span class="sd">        _helper (InterfaceHelper): Global helper needed to access constants defined at module level.</span>
+<span class="sd">        _manager (OntologyManager): Global ontology manager needed for dealing with ARMOR, accessible at module level.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">interface_helper</span><span class="p">,</span> <span class="n">ontology_manager</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_helper</span> <span class="o">=</span> <span class="n">interface_helper</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_manager</span> <span class="o">=</span> <span class="n">ontology_manager</span>
+        <span class="n">smach</span><span class="o">.</span><span class="n">State</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">outcomes</span><span class="o">=</span><span class="p">[</span><span class="n">anm</span><span class="o">.</span><span class="n">BATTERY_OK_TRANS</span><span class="p">])</span>
+   
+<div class="viewcode-block" id="Recharge.execute"><a class="viewcode-back" href="../../index.html#scripts.state_machine.Recharge.execute">[docs]</a>    <span class="k">def</span> <span class="nf">execute</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">userdata</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Core function for the `RECHARGE` state.</span>
+<span class="sd">        </span>
+<span class="sd">        Args:</span>
+<span class="sd">            userdata (Remapper): structure that stores data exchanged between states.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            str: Following state in the finite state machine (`REASONING`). </span>
+
+<span class="sd">        Note: </span>
+<span class="sd">            The duration of the recharging process is not bounded. This means that if nobody notifies the robot that the battery level is restored, it is blocked in this state forever.</span>
+<span class="sd">            Different recharging durations can be tested both manually (with `manual_sense.launch`) or automatically (with `random_sense.launch`)  </span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">rospy</span><span class="o">.</span><span class="n">loginfo</span><span class="p">(</span><span class="s1">&#39;Executing state Recharge&#39;</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="n">anm</span><span class="o">.</span><span class="n">WARNING_COLOR</span> <span class="o">+</span> <span class="s2">&quot;Recharging... &quot;</span> <span class="o">+</span> <span class="n">anm</span><span class="o">.</span><span class="n">STANDARD_COLOR</span><span class="p">)</span>
+        <span class="k">while</span> <span class="ow">not</span> <span class="n">rospy</span><span class="o">.</span><span class="n">is_shutdown</span><span class="p">():</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_helper</span><span class="o">.</span><span class="n">mutex</span><span class="o">.</span><span class="n">acquire</span><span class="p">()</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_helper</span><span class="o">.</span><span class="n">is_battery_low</span><span class="p">():</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_helper</span><span class="o">.</span><span class="n">reset_battery</span><span class="p">()</span>
+
+                    <span class="c1"># Before leaving charging room update its visited time value</span>
+                    <span class="n">old_value</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_manager</span><span class="o">.</span><span class="n">dataprop_ind</span><span class="p">(</span><span class="n">anm</span><span class="o">.</span><span class="n">VISITED_AT</span><span class="p">,</span> <span class="n">anm</span><span class="o">.</span><span class="n">RECHARGE_ROOM</span><span class="p">))</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_manager</span><span class="o">.</span><span class="n">replace_dataprop_ind</span><span class="p">(</span><span class="n">anm</span><span class="o">.</span><span class="n">VISITED_AT</span><span class="p">,</span> <span class="n">anm</span><span class="o">.</span><span class="n">RECHARGE_ROOM</span><span class="p">,</span> <span class="n">anm</span><span class="o">.</span><span class="n">LONG_TYPE</span><span class="p">,</span> 
+                                                          <span class="nb">str</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">())),</span> <span class="nb">str</span><span class="p">(</span><span class="n">old_value</span><span class="p">))</span>
+                    <span class="c1"># Reason on new data in the ontology and save it if necessary</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_manager</span><span class="o">.</span><span class="n">sync_reasoner</span><span class="p">()</span>
+                    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_helper</span><span class="o">.</span><span class="n">save_ontology</span><span class="p">():</span> 
+                        <span class="bp">self</span><span class="o">.</span><span class="n">_manager</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_helper</span><span class="o">.</span><span class="n">ont_output_path</span><span class="p">())</span>
+
+                    <span class="nb">print</span><span class="p">(</span><span class="n">anm</span><span class="o">.</span><span class="n">OK_BATTERY_COLOR</span> <span class="o">+</span> <span class="s2">&quot; Battery ok &quot;</span> <span class="o">+</span> <span class="n">anm</span><span class="o">.</span><span class="n">STANDARD_COLOR</span><span class="p">)</span>
+                    <span class="k">return</span> <span class="n">anm</span><span class="o">.</span><span class="n">BATTERY_OK_TRANS</span>
+            <span class="k">finally</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_helper</span><span class="o">.</span><span class="n">mutex</span><span class="o">.</span><span class="n">release</span><span class="p">()</span>
+            <span class="n">rospy</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mf">0.3</span><span class="p">)</span></div></div>
+
+<div class="viewcode-block" id="main"><a class="viewcode-back" href="../../index.html#scripts.state_machine.main">[docs]</a><span class="k">def</span> <span class="nf">main</span><span class="p">():</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Main function for ROS node definition and smach finite state machine execution.</span>
+<span class="sd">    In this method all states are connected with transitions. </span>
+
+<span class="sd">    Subscribes to:</span>
+<span class="sd">        * *state/battery_low*: where a given node updates robot&#39;s battery status (through the instanciated InterfaceHelper object).</span>
+<span class="sd">    </span>
+<span class="sd">    Services:</span>
+<span class="sd">        * *state/set_pose* (client): client to setting initial pose of the robot (through the instanciated InterfaceHelper object). </span>
+<span class="sd">        * */armor_interface_srv* (client): used to perform calls to the ARMOR ROS service (through the instanciated OntologyManager object)</span>
+
+<span class="sd">    Action servers:</span>
+<span class="sd">        * *motion/planner* (client): client to ask the planner for the list of waypoints (through the instanciated InterfaceHelper object). </span>
+<span class="sd">        * *motion/controller* (client): client to execute the plan and move the actuators (through the instanciated InterfaceHelper object).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">rospy</span><span class="o">.</span><span class="n">init_node</span><span class="p">(</span><span class="s1">&#39;state_machine&#39;</span><span class="p">)</span>
+
+    <span class="n">interface_helper</span> <span class="o">=</span> <span class="n">helpers</span><span class="o">.</span><span class="n">InterfaceHelper</span><span class="p">()</span>
+
+    <span class="c1"># Get required params from the ROS parameter server</span>
+    <span class="n">required_params</span> <span class="o">=</span> <span class="p">[</span><span class="n">anm</span><span class="o">.</span><span class="n">CLIENT_NAME_PARAM</span><span class="p">,</span> <span class="n">anm</span><span class="o">.</span><span class="n">REF_NAME_PARAM</span><span class="p">,</span> <span class="n">anm</span><span class="o">.</span><span class="n">ONTOLOGY_FILEPATH</span><span class="p">,</span> <span class="n">anm</span><span class="o">.</span><span class="n">MONITORING_DURATION</span><span class="p">,</span> <span class="n">anm</span><span class="o">.</span><span class="n">IRI</span><span class="p">,</span> <span class="n">anm</span><span class="o">.</span><span class="n">PRINT_FSM_STATES</span><span class="p">,</span> <span class="n">anm</span><span class="o">.</span><span class="n">PARAM_ENVIRONMENT_SIZE</span><span class="p">,</span> <span class="n">anm</span><span class="o">.</span><span class="n">ROBUST_MODE</span><span class="p">]</span>
+    <span class="n">client_name</span><span class="p">,</span> <span class="n">ref_name</span><span class="p">,</span> <span class="n">ontology_filepath</span><span class="p">,</span> <span class="n">monitoring_duration</span><span class="p">,</span> <span class="n">iri_path</span><span class="p">,</span> <span class="n">print_fsm_states</span><span class="p">,</span> <span class="n">env_size</span><span class="p">,</span> <span class="n">robust_mode</span> <span class="o">=</span> <span class="n">interface_helper</span><span class="o">.</span><span class="n">get_params</span><span class="p">(</span><span class="n">required_params</span><span class="p">)</span>
+
+    <span class="n">ontology_manager</span> <span class="o">=</span> <span class="n">om</span><span class="o">.</span><span class="n">OntologyManager</span><span class="p">(</span><span class="n">client_name</span><span class="p">,</span> <span class="n">ref_name</span><span class="p">)</span>
+
+    <span class="c1"># Create a SMACH finite state machine (FSM)</span>
+    <span class="n">sm_top</span> <span class="o">=</span> <span class="n">smach</span><span class="o">.</span><span class="n">StateMachine</span><span class="p">(</span><span class="n">outcomes</span><span class="o">=</span><span class="p">[])</span>
+
+    <span class="c1"># Open the container</span>
+    <span class="k">with</span> <span class="n">sm_top</span><span class="p">:</span>
+        <span class="c1"># Single state added to the top FSM</span>
+        <span class="n">smach</span><span class="o">.</span><span class="n">StateMachine</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">anm</span><span class="o">.</span><span class="n">INIT_STATE</span><span class="p">,</span> <span class="n">Init</span><span class="p">(</span><span class="n">interface_helper</span><span class="p">,</span> <span class="n">ontology_manager</span><span class="p">,</span> <span class="n">ontology_filepath</span><span class="p">,</span> <span class="n">iri_path</span><span class="p">,</span> <span class="n">robust_mode</span><span class="p">),</span> 
+                               <span class="n">transitions</span><span class="o">=</span><span class="p">{</span><span class="n">anm</span><span class="o">.</span><span class="n">READY_TRANS</span><span class="p">:</span> <span class="n">anm</span><span class="o">.</span><span class="n">SURVEILLANCE_SUB_SM</span><span class="p">})</span>
+        
+        <span class="c1"># Sub-FSM definition for surveillance task</span>
+        <span class="n">sm_surveillance</span> <span class="o">=</span> <span class="n">smach</span><span class="o">.</span><span class="n">StateMachine</span><span class="p">(</span><span class="n">outcomes</span><span class="o">=</span><span class="p">[</span><span class="n">anm</span><span class="o">.</span><span class="n">BATTERY_LOW_TRANS</span><span class="p">],</span> <span class="n">output_keys</span><span class="o">=</span><span class="p">[</span><span class="n">anm</span><span class="o">.</span><span class="n">CURRENT_ROOM_KEY</span><span class="p">])</span>
+
+        <span class="k">with</span> <span class="n">sm_surveillance</span><span class="p">:</span>
+            <span class="n">smach</span><span class="o">.</span><span class="n">StateMachine</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">anm</span><span class="o">.</span><span class="n">REASONING_STATE</span><span class="p">,</span> <span class="n">Reasoning</span><span class="p">(</span><span class="n">interface_helper</span><span class="p">,</span> <span class="n">ontology_manager</span><span class="p">),</span> 
+                               <span class="n">transitions</span><span class="o">=</span><span class="p">{</span><span class="n">anm</span><span class="o">.</span><span class="n">TARGET_CHOOSEN_TRANS</span><span class="p">:</span> <span class="n">anm</span><span class="o">.</span><span class="n">PLANNING_STATE</span><span class="p">,</span>
+                                            <span class="n">anm</span><span class="o">.</span><span class="n">BATTERY_ALERT_TRANS</span><span class="p">:</span> <span class="n">anm</span><span class="o">.</span><span class="n">BATTERY_LOW_TRANS</span><span class="p">})</span>
+            <span class="n">smach</span><span class="o">.</span><span class="n">StateMachine</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">anm</span><span class="o">.</span><span class="n">PLANNING_STATE</span><span class="p">,</span> <span class="n">Planning</span><span class="p">(</span><span class="n">interface_helper</span><span class="p">,</span> <span class="n">ontology_manager</span><span class="p">,</span> <span class="n">env_size</span><span class="p">),</span> 
+                               <span class="n">transitions</span><span class="o">=</span><span class="p">{</span><span class="n">anm</span><span class="o">.</span><span class="n">PLAN_READY_TRANS</span><span class="p">:</span> <span class="n">anm</span><span class="o">.</span><span class="n">MOVE_TO_GOAL_STATE</span><span class="p">,</span>
+                                            <span class="n">anm</span><span class="o">.</span><span class="n">BATTERY_ALERT_TRANS</span><span class="p">:</span> <span class="n">anm</span><span class="o">.</span><span class="n">BATTERY_LOW_TRANS</span><span class="p">})</span>
+            <span class="n">smach</span><span class="o">.</span><span class="n">StateMachine</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">anm</span><span class="o">.</span><span class="n">MOVE_TO_GOAL_STATE</span><span class="p">,</span> <span class="n">Move_to_goal</span><span class="p">(</span><span class="n">interface_helper</span><span class="p">,</span> <span class="n">ontology_manager</span><span class="p">),</span> 
+                               <span class="n">transitions</span><span class="o">=</span><span class="p">{</span><span class="n">anm</span><span class="o">.</span><span class="n">BATTERY_ALERT_TRANS</span><span class="p">:</span> <span class="n">anm</span><span class="o">.</span><span class="n">BATTERY_LOW_TRANS</span><span class="p">,</span>
+                                            <span class="n">anm</span><span class="o">.</span><span class="n">ROOM_REACHED_TRANS</span><span class="p">:</span> <span class="n">anm</span><span class="o">.</span><span class="n">MONITOR_ROOM_STATE</span><span class="p">})</span>
+            <span class="n">smach</span><span class="o">.</span><span class="n">StateMachine</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">anm</span><span class="o">.</span><span class="n">MONITOR_ROOM_STATE</span><span class="p">,</span> <span class="n">Monitor_room</span><span class="p">(</span><span class="n">interface_helper</span><span class="p">,</span> <span class="n">ontology_manager</span><span class="p">,</span> <span class="n">monitoring_duration</span><span class="p">),</span> 
+                               <span class="n">transitions</span><span class="o">=</span><span class="p">{</span><span class="n">anm</span><span class="o">.</span><span class="n">BATTERY_ALERT_TRANS</span><span class="p">:</span> <span class="n">anm</span><span class="o">.</span><span class="n">BATTERY_LOW_TRANS</span><span class="p">,</span>
+                                            <span class="n">anm</span><span class="o">.</span><span class="n">NEXT_MOVE_TRANS</span><span class="p">:</span> <span class="n">anm</span><span class="o">.</span><span class="n">REASONING_STATE</span><span class="p">})</span>
+        
+        <span class="c1"># Surveillance sub-FSM added to the main one</span>
+        <span class="n">smach</span><span class="o">.</span><span class="n">StateMachine</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">anm</span><span class="o">.</span><span class="n">SURVEILLANCE_SUB_SM</span><span class="p">,</span> <span class="n">sm_surveillance</span><span class="p">,</span>
+                                <span class="n">transitions</span><span class="o">=</span><span class="p">{</span><span class="n">anm</span><span class="o">.</span><span class="n">BATTERY_LOW_TRANS</span><span class="p">:</span> <span class="n">anm</span><span class="o">.</span><span class="n">RECHARGING_SUB_SM</span><span class="p">})</span> <span class="c1"># not directly MOVE_TO_RECHARGE_STATE</span>
+
+        <span class="c1"># Sub-FSM definition for recharging task</span>
+        <span class="n">sm_recharging</span> <span class="o">=</span> <span class="n">smach</span><span class="o">.</span><span class="n">StateMachine</span><span class="p">(</span><span class="n">outcomes</span><span class="o">=</span><span class="p">[</span><span class="n">anm</span><span class="o">.</span><span class="n">BACK_TO_REASON_TRANS</span><span class="p">],</span> <span class="n">input_keys</span><span class="o">=</span><span class="p">[</span><span class="n">anm</span><span class="o">.</span><span class="n">CURRENT_ROOM_KEY</span><span class="p">])</span> 
+
+        <span class="k">with</span> <span class="n">sm_recharging</span><span class="p">:</span>
+            <span class="n">smach</span><span class="o">.</span><span class="n">StateMachine</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">anm</span><span class="o">.</span><span class="n">MOVE_TO_RECHARGE_STATE</span><span class="p">,</span> <span class="n">Move_to_recharge</span><span class="p">(</span><span class="n">interface_helper</span><span class="p">,</span> <span class="n">ontology_manager</span><span class="p">,</span> <span class="n">env_size</span><span class="p">),</span> 
+                               <span class="n">transitions</span><span class="o">=</span><span class="p">{</span><span class="n">anm</span><span class="o">.</span><span class="n">AT_CHARGING_BASE_TRANS</span><span class="p">:</span> <span class="n">anm</span><span class="o">.</span><span class="n">RECHARGE_STATE</span><span class="p">})</span>
+            <span class="n">smach</span><span class="o">.</span><span class="n">StateMachine</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">anm</span><span class="o">.</span><span class="n">RECHARGE_STATE</span><span class="p">,</span> <span class="n">Recharge</span><span class="p">(</span><span class="n">interface_helper</span><span class="p">,</span> <span class="n">ontology_manager</span><span class="p">),</span> 
+                               <span class="n">transitions</span><span class="o">=</span><span class="p">{</span><span class="n">anm</span><span class="o">.</span><span class="n">BATTERY_OK_TRANS</span><span class="p">:</span> <span class="n">anm</span><span class="o">.</span><span class="n">BACK_TO_REASON_TRANS</span><span class="p">})</span>
+
+        <span class="c1"># Recharging sub-FSM added to the main one</span>
+        <span class="n">smach</span><span class="o">.</span><span class="n">StateMachine</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">anm</span><span class="o">.</span><span class="n">RECHARGING_SUB_SM</span><span class="p">,</span> <span class="n">sm_recharging</span><span class="p">,</span>
+                                <span class="n">transitions</span><span class="o">=</span><span class="p">{</span><span class="n">anm</span><span class="o">.</span><span class="n">BACK_TO_REASON_TRANS</span><span class="p">:</span> <span class="n">anm</span><span class="o">.</span><span class="n">SURVEILLANCE_SUB_SM</span><span class="p">})</span>
+
+
+    <span class="c1"># Create and start the introspection server for visualization</span>
+    <span class="n">sis</span> <span class="o">=</span> <span class="n">smach_ros</span><span class="o">.</span><span class="n">IntrospectionServer</span><span class="p">(</span><span class="s1">&#39;fsm_inspection_server&#39;</span><span class="p">,</span> <span class="n">sm_top</span><span class="p">,</span> <span class="s1">&#39;/SM_ROOT&#39;</span><span class="p">)</span>
+    <span class="n">sis</span><span class="o">.</span><span class="n">start</span><span class="p">()</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">anm</span><span class="o">.</span><span class="n">WARNING_COLOR</span> <span class="o">+</span> <span class="s2">&quot;Starting execution...&quot;</span> <span class="o">+</span> <span class="n">anm</span><span class="o">.</span><span class="n">STANDARD_COLOR</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">print_fsm_states</span><span class="p">:</span>
+        <span class="n">introspection_client</span> <span class="o">=</span> <span class="n">roslaunch</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">Node</span><span class="p">(</span><span class="s1">&#39;smach_viewer&#39;</span><span class="p">,</span> <span class="s1">&#39;smach_viewer.py&#39;</span><span class="p">)</span>
+        <span class="n">launch</span> <span class="o">=</span> <span class="n">roslaunch</span><span class="o">.</span><span class="n">scriptapi</span><span class="o">.</span><span class="n">ROSLaunch</span><span class="p">()</span>
+        <span class="n">launch</span><span class="o">.</span><span class="n">start</span><span class="p">()</span>
+        <span class="n">launch</span><span class="o">.</span><span class="n">launch</span><span class="p">(</span><span class="n">introspection_client</span><span class="p">)</span>
+
+    <span class="c1"># Execute the state machine</span>
+    <span class="n">outcome</span> <span class="o">=</span> <span class="n">sm_top</span><span class="o">.</span><span class="n">execute</span><span class="p">()</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">anm</span><span class="o">.</span><span class="n">WARNING_COLOR</span> <span class="o">+</span> <span class="s1">&#39;---- Final state&#39;</span><span class="p">,</span> <span class="n">outcome</span><span class="p">,</span><span class="s1">&#39;reached ---- &#39;</span> <span class="o">+</span> <span class="n">anm</span><span class="o">.</span><span class="n">STANDARD_COLOR</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">interface_helper</span><span class="o">.</span><span class="n">track_position_required</span><span class="p">:</span>
+            <span class="n">interface_helper</span><span class="o">.</span><span class="n">close_log_file</span><span class="p">()</span>
+
+    <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Exiting...&#39;</span><span class="p">)</span>
+    <span class="n">rospy</span><span class="o">.</span><span class="n">signal_shutdown</span><span class="p">(</span><span class="s1">&#39;&#39;</span><span class="p">)</span>
+
+    <span class="c1"># Wait for ctrl-c to stop the application</span>
+    <span class="n">rospy</span><span class="o">.</span><span class="n">spin</span><span class="p">()</span>
+    <span class="n">sis</span><span class="o">.</span><span class="n">stop</span><span class="p">()</span></div>
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s1">&#39;__main__&#39;</span><span class="p">:</span>
+    <span class="n">main</span><span class="p">()</span>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2022, Michele Pestarino.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

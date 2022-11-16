@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>utilities.assignment1_ERL.ontology_manager &mdash; Assignment 1 - Experiemntal Robotics Course 0.1 documentation</title>
+      <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/graphviz.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js"></script>
+        <script src="../../../_static/jquery.js"></script>
+        <script src="../../../_static/underscore.js"></script>
+        <script src="../../../_static/doctools.js"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+            <a href="../../../index.html" class="icon icon-home"> Assignment 1 - Experiemntal Robotics Course
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <!-- Local TOC -->
+              <div class="local-toc"></div>
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">Assignment 1 - Experiemntal Robotics Course</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home"></a> &raquo;</li>
+          <li><a href="../../index.html">Module code</a> &raquo;</li>
+      <li>utilities.assignment1_ERL.ontology_manager</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for utilities.assignment1_ERL.ontology_manager</h1><div class="highlight"><pre>
+<span></span><span class="ch">#!/usr/bin/env python</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">.. module:: OntologyManager</span>
+<span class="sd">   :platform: Unix</span>
+<span class="sd">   :synopsis: Python module for manipulating an ontology </span>
+
+<span class="sd">.. moduleauthor:: Michele Pestarino &lt;s4672032@studenti.unige.it&gt;</span>
+
+<span class="sd">Class that allows to load, query and update an already provided ontology through the ARMOR management system.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">import</span> <span class="nn">rospy</span>
+<span class="kn">from</span> <span class="nn">assignment1_ERL</span> <span class="kn">import</span> <span class="n">architecture_name_mapper</span> <span class="k">as</span> <span class="n">anm</span>
+<span class="kn">from</span> <span class="nn">armor_msgs.srv</span> <span class="kn">import</span> <span class="n">ArmorDirective</span>
+<span class="kn">from</span> <span class="nn">armor_msgs.msg</span> <span class="kn">import</span> <span class="n">_ArmorDirectiveReq</span>
+
+<div class="viewcode-block" id="OntologyManager"><a class="viewcode-back" href="../../../index.html#utilities.assignment1_ERL.ontology_manager.OntologyManager">[docs]</a><span class="k">class</span> <span class="nc">OntologyManager</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    This is a class used to simplify the task related to load, query and replace commands sent to the ARMOR service, needed to integrate the ontology manipulation in the software framework.</span>
+<span class="sd">    </span>
+<span class="sd">    Attributes:</span>
+<span class="sd">        _client_name (str): Module-level variable used to keep track of single client name, needed to distinguish among several possible clients in complex scenarios.</span>
+<span class="sd">        _reference_name (str): Module-level variable used to keep track of single reference name for the ontology, needed to distinguish among several possible ontologies in complex scenarios.</span>
+<span class="sd">        _timeout (int): Maximum time spent waiting for the service before returning an error.</span>
+<span class="sd">        _service_name (str): Identifier for the service, needed to instanciate the client and perform calls.</span>
+<span class="sd">        _client (ServiceProxy): Proxy item used to call the ARMOR service.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">ont_name</span><span class="p">,</span> <span class="n">service_name</span><span class="o">=</span><span class="n">anm</span><span class="o">.</span><span class="n">ARMOR_SERVICE</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="mi">5</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_client_name</span> <span class="o">=</span> <span class="n">name</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_reference_name</span> <span class="o">=</span> <span class="n">ont_name</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_timeout</span> <span class="o">=</span> <span class="n">timeout</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_service_name</span> <span class="o">=</span> <span class="n">service_name</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_client</span> <span class="o">=</span> <span class="n">rospy</span><span class="o">.</span><span class="n">ServiceProxy</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_service_name</span><span class="p">,</span> <span class="n">ArmorDirective</span><span class="p">)</span>
+    
+<div class="viewcode-block" id="OntologyManager.replace_objectprop_ind"><a class="viewcode-back" href="../../../index.html#utilities.assignment1_ERL.ontology_manager.OntologyManager.replace_objectprop_ind">[docs]</a>    <span class="k">def</span> <span class="nf">replace_objectprop_ind</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">objectprop_name</span><span class="p">,</span> <span class="n">ind_name</span><span class="p">,</span> <span class="n">new_value</span><span class="p">,</span> <span class="n">old_value</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Function to replace the value of an object property belonging to an individual. </span>
+<span class="sd">        If the individual or the property instance to be replaced do not exist, they will be created.</span>
+<span class="sd">    </span>
+<span class="sd">        Args:</span>
+<span class="sd">            objectprop_name (str): name of the object property to replace.</span>
+<span class="sd">            ind_name (str): individual whose property has to be replaced.</span>
+<span class="sd">            new_value (str): new value of the object property.</span>
+<span class="sd">            old_value (str): current value of the object property to be replaced.</span>
+<span class="sd">    </span>
+<span class="sd">        Raises:</span>
+<span class="sd">            rospy.ServiceException: if call to ARMOR fails.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            bool: True if ontology is consistent, otherwise False.</span>
+<span class="sd">    </span>
+<span class="sd">        Note:</span>
+<span class="sd">            Again, *old_value* is necessary since more than one object property instance may be applied to an individual. </span>
+<span class="sd">            Only the specified instance will be replaced.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">res</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">call</span><span class="p">(</span><span class="s1">&#39;REPLACE&#39;</span><span class="p">,</span> <span class="s1">&#39;OBJECTPROP&#39;</span><span class="p">,</span> <span class="s1">&#39;IND&#39;</span><span class="p">,</span> <span class="p">[</span><span class="n">objectprop_name</span><span class="p">,</span> <span class="n">ind_name</span><span class="p">,</span> <span class="n">new_value</span><span class="p">,</span> <span class="n">old_value</span><span class="p">])</span>
+    
+        <span class="k">except</span> <span class="n">rospy</span><span class="o">.</span><span class="n">ServiceException</span><span class="p">:</span>
+            <span class="n">log_msg</span> <span class="o">=</span> <span class="s2">&quot;Service call failed upon adding property </span><span class="si">{0}</span><span class="s2"> to individual </span><span class="si">{1}</span><span class="s2">.&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">objectprop_name</span><span class="p">,</span> <span class="n">ind_name</span><span class="p">)</span>
+            <span class="n">rospy</span><span class="o">.</span><span class="n">logerr</span><span class="p">(</span><span class="n">anm</span><span class="o">.</span><span class="n">tag_log</span><span class="p">(</span><span class="n">log_msg</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_client_name</span><span class="p">))</span>
+
+        <span class="k">if</span> <span class="n">res</span><span class="o">.</span><span class="n">success</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">res</span><span class="o">.</span><span class="n">is_consistent</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">rospy</span><span class="o">.</span><span class="n">ServiceException</span><span class="p">(</span><span class="n">res</span><span class="o">.</span><span class="n">error_description</span><span class="p">,</span> <span class="n">res</span><span class="o">.</span><span class="n">exit_code</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="OntologyManager.replace_dataprop_ind"><a class="viewcode-back" href="../../../index.html#utilities.assignment1_ERL.ontology_manager.OntologyManager.replace_dataprop_ind">[docs]</a>    <span class="k">def</span> <span class="nf">replace_dataprop_ind</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dataprop_name</span><span class="p">,</span> <span class="n">ind_name</span><span class="p">,</span> <span class="n">value_type</span><span class="p">,</span> <span class="n">new_value</span><span class="p">,</span> <span class="n">old_value</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Function to replace the value of a data property belonging to an individual. </span>
+<span class="sd">        If the individual or the property instance to be replaced do not exist, they will be created.</span>
+<span class="sd">    </span>
+<span class="sd">        Args:</span>
+<span class="sd">            dataprop_name (str): name of the data property to assign.</span>
+<span class="sd">            ind_name (str): individual to assign the data property value.</span>
+<span class="sd">            value_type (str): type of the value to assign (INTEGER, INT, FLOAT, LONG, DOUBLE, STRING, BOOLEAN, BOOL).</span>
+<span class="sd">            new_value (str): new value of the data property.</span>
+<span class="sd">            old_value (str): current value of the data property to be replaced.</span>
+<span class="sd">    </span>
+<span class="sd">        Raises:</span>
+<span class="sd">            rospy.ServiceException: if call to ARMOR fails.</span>
+<span class="sd">            </span>
+<span class="sd">        Returns:</span>
+<span class="sd">            bool: True if ontology is consistent, otherwise False.</span>
+<span class="sd">    </span>
+<span class="sd">        Note:</span>
+<span class="sd">            *old_value* is necessary since more than one object property instance may be applied to an individual. </span>
+<span class="sd">            Only the specified instance will be replaced.</span>
+<span class="sd">    </span>
+<span class="sd">        Note:</span>
+<span class="sd">            Consistency can break even if you send a proper request but the ontology is expecting a different value type.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">res</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">call</span><span class="p">(</span><span class="s1">&#39;REPLACE&#39;</span><span class="p">,</span> <span class="s1">&#39;DATAPROP&#39;</span><span class="p">,</span> <span class="s1">&#39;IND&#39;</span><span class="p">,</span> 
+                                   <span class="p">[</span><span class="n">dataprop_name</span><span class="p">,</span> <span class="n">ind_name</span><span class="p">,</span> <span class="n">value_type</span><span class="p">,</span> <span class="n">new_value</span><span class="p">,</span> <span class="n">old_value</span><span class="p">])</span>
+    
+        <span class="k">except</span> <span class="n">rospy</span><span class="o">.</span><span class="n">ServiceException</span><span class="p">:</span>
+            <span class="n">log_msg</span> <span class="o">=</span> <span class="s2">&quot;Service call failed upon adding property </span><span class="si">{0}</span><span class="s2"> to individual </span><span class="si">{1}</span><span class="s2">.&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">dataprop_name</span><span class="p">,</span> <span class="n">ind_name</span><span class="p">)</span>
+            <span class="n">rospy</span><span class="o">.</span><span class="n">logerr</span><span class="p">(</span><span class="n">anm</span><span class="o">.</span><span class="n">tag_log</span><span class="p">(</span><span class="n">log_msg</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_client_name</span><span class="p">))</span>
+
+        <span class="k">if</span> <span class="n">res</span><span class="o">.</span><span class="n">success</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">res</span><span class="o">.</span><span class="n">is_consistent</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">rospy</span><span class="o">.</span><span class="n">ServiceException</span><span class="p">(</span><span class="n">res</span><span class="o">.</span><span class="n">error_description</span><span class="p">,</span> <span class="n">res</span><span class="o">.</span><span class="n">exit_code</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="OntologyManager.objectprop_ind"><a class="viewcode-back" href="../../../index.html#utilities.assignment1_ERL.ontology_manager.OntologyManager.objectprop_ind">[docs]</a>    <span class="k">def</span> <span class="nf">objectprop_ind</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">objectprop_name</span><span class="p">,</span> <span class="n">ind_name</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Function to query the value of an object property associated with an individual.</span>
+<span class="sd">    </span>
+<span class="sd">        Args:</span>
+<span class="sd">            objectprop_name (str): object property that is queried.</span>
+<span class="sd">            ind_name (str): individual whose property is queried.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            rospy.ServiceException: if call to ARMOR fails.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            str: parsed result returned by the service.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">res</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">call</span><span class="p">(</span><span class="s1">&#39;QUERY&#39;</span><span class="p">,</span> <span class="s1">&#39;OBJECTPROP&#39;</span><span class="p">,</span> <span class="s1">&#39;IND&#39;</span><span class="p">,</span> <span class="p">[</span><span class="n">objectprop_name</span><span class="p">,</span> <span class="n">ind_name</span><span class="p">])</span>
+    
+        <span class="k">except</span> <span class="n">rospy</span><span class="o">.</span><span class="n">ServiceException</span><span class="p">:</span>
+            <span class="n">log_msg</span> <span class="o">=</span> <span class="s2">&quot;Service call failed upon querying property </span><span class="si">{0}</span><span class="s2"> to individual </span><span class="si">{1}</span><span class="s2">.&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">objectprop_name</span><span class="p">,</span> <span class="n">ind_name</span><span class="p">)</span>
+            <span class="n">rospy</span><span class="o">.</span><span class="n">logerr</span><span class="p">(</span><span class="n">anm</span><span class="o">.</span><span class="n">tag_log</span><span class="p">(</span><span class="n">log_msg</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_client_name</span><span class="p">))</span>
+    
+        <span class="k">if</span> <span class="n">res</span><span class="o">.</span><span class="n">success</span><span class="p">:</span>
+            <span class="n">parsed_res</span> <span class="o">=</span> <span class="p">[</span><span class="n">item</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;#&#39;</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;&gt;&#39;</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">res</span><span class="o">.</span><span class="n">queried_objects</span><span class="p">]</span>
+            <span class="k">return</span> <span class="n">parsed_res</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">rospy</span><span class="o">.</span><span class="n">ServiceException</span><span class="p">(</span><span class="n">res</span><span class="o">.</span><span class="n">error_description</span><span class="p">,</span> <span class="n">res</span><span class="o">.</span><span class="n">exit_code</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="OntologyManager.dataprop_ind"><a class="viewcode-back" href="../../../index.html#utilities.assignment1_ERL.ontology_manager.OntologyManager.dataprop_ind">[docs]</a>    <span class="k">def</span> <span class="nf">dataprop_ind</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dataprop_name</span><span class="p">,</span> <span class="n">ind_name</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Function to query the value of a data property associated with an individual.</span>
+<span class="sd">    </span>
+<span class="sd">        Args:</span>
+<span class="sd">            dataprop_name (str): data property that is queried.</span>
+<span class="sd">            ind_name (str): individual whose property is queried.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            rospy.ServiceException: if call to ARMOR fails.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            str: parsed result returned by the service.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">res</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">call</span><span class="p">(</span><span class="s1">&#39;QUERY&#39;</span><span class="p">,</span> <span class="s1">&#39;DATAPROP&#39;</span><span class="p">,</span> <span class="s1">&#39;IND&#39;</span><span class="p">,</span> <span class="p">[</span><span class="n">dataprop_name</span><span class="p">,</span> <span class="n">ind_name</span><span class="p">])</span>
+    
+        <span class="k">except</span> <span class="n">rospy</span><span class="o">.</span><span class="n">ServiceException</span><span class="p">:</span>
+            <span class="n">log_msg</span> <span class="o">=</span> <span class="s2">&quot;Service call failed upon querying property </span><span class="si">{0}</span><span class="s2"> to individual </span><span class="si">{1}</span><span class="s2">.&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">dataprop_name</span><span class="p">,</span> <span class="n">ind_name</span><span class="p">)</span>
+            <span class="n">rospy</span><span class="o">.</span><span class="n">logerr</span><span class="p">(</span><span class="n">anm</span><span class="o">.</span><span class="n">tag_log</span><span class="p">(</span><span class="n">log_msg</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_client_name</span><span class="p">))</span>
+    
+        <span class="k">if</span> <span class="n">res</span><span class="o">.</span><span class="n">success</span><span class="p">:</span>
+            <span class="n">parsed_res</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span> <span class="c1"># Meaning empty list</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">res</span><span class="o">.</span><span class="n">queried_objects</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">parsed_res</span> <span class="o">=</span> <span class="n">res</span><span class="o">.</span><span class="n">queried_objects</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\&quot;</span><span class="s2">&quot;</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span>
+            <span class="k">return</span> <span class="n">parsed_res</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">rospy</span><span class="o">.</span><span class="n">ServiceException</span><span class="p">(</span><span class="n">res</span><span class="o">.</span><span class="n">error_description</span><span class="p">,</span> <span class="n">res</span><span class="o">.</span><span class="n">exit_code</span><span class="p">)</span></div>
+    
+<div class="viewcode-block" id="OntologyManager.sync_reasoner"><a class="viewcode-back" href="../../../index.html#utilities.assignment1_ERL.ontology_manager.OntologyManager.sync_reasoner">[docs]</a>    <span class="k">def</span> <span class="nf">sync_reasoner</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Function to sync ontology reference reasoner.</span>
+<span class="sd">    </span>
+<span class="sd">        Raises:</span>
+<span class="sd">            rospy.ServiceException: if call to ARMOR fails.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            bool: True if ontology is consistent, otherwise False.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">res</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">call</span><span class="p">(</span><span class="s1">&#39;REASON&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="p">[])</span>
+            <span class="n">rospy</span><span class="o">.</span><span class="n">loginfo</span><span class="p">(</span>
+                <span class="s2">&quot;Reasoner synced on </span><span class="si">{0}</span><span class="s2"> applied, consistency: </span><span class="si">{1}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_reference_name</span><span class="p">,</span> <span class="n">res</span><span class="o">.</span><span class="n">is_consistent</span><span class="p">))</span>
+
+        <span class="k">except</span> <span class="n">rospy</span><span class="o">.</span><span class="n">ServiceException</span><span class="p">:</span>
+            <span class="n">log_msg</span> <span class="o">=</span> <span class="s2">&quot;Armor service internal error. Buffered reasoner could not be sync.&quot;</span>
+            <span class="n">rospy</span><span class="o">.</span><span class="n">logerr</span><span class="p">(</span><span class="n">anm</span><span class="o">.</span><span class="n">tag_log</span><span class="p">(</span><span class="n">log_msg</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_client_name</span><span class="p">))</span>
+
+        <span class="k">if</span> <span class="n">res</span><span class="o">.</span><span class="n">success</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">res</span><span class="o">.</span><span class="n">is_consistent</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">rospy</span><span class="o">.</span><span class="n">ServiceException</span><span class="p">(</span><span class="n">res</span><span class="o">.</span><span class="n">error_description</span><span class="p">,</span> <span class="n">res</span><span class="o">.</span><span class="n">exit_code</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="OntologyManager.save"><a class="viewcode-back" href="../../../index.html#utilities.assignment1_ERL.ontology_manager.OntologyManager.save">[docs]</a>    <span class="k">def</span> <span class="nf">save</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">filepath</span><span class="p">,</span> <span class="n">inference</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Function to save the ontology to a given path.</span>
+<span class="sd">    </span>
+<span class="sd">        Args:</span>
+<span class="sd">            filepath (str): location of the saved ontology.</span>
+<span class="sd">    </span>
+<span class="sd">        Raises:</span>
+<span class="sd">            rospy.ServiceException: if save operation not successful.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">inference</span><span class="p">:</span>
+                <span class="n">res</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">call</span><span class="p">(</span><span class="s1">&#39;SAVE&#39;</span><span class="p">,</span> <span class="s1">&#39;INFERENCE&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="p">[</span><span class="n">filepath</span><span class="p">])</span>            
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">res</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">call</span><span class="p">(</span><span class="s1">&#39;SAVE&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="p">[</span><span class="n">filepath</span><span class="p">])</span>
+            <span class="n">rospy</span><span class="o">.</span><span class="n">loginfo</span><span class="p">(</span>
+                <span class="s2">&quot;Reference </span><span class="si">{0}</span><span class="s2"> saved to </span><span class="si">{1}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_reference_name</span><span class="p">,</span> <span class="n">filepath</span><span class="p">))</span>
+
+        <span class="k">except</span> <span class="n">rospy</span><span class="o">.</span><span class="n">ServiceException</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="n">log_msg</span> <span class="o">=</span> <span class="s2">&quot;Armor service error. Cannot save reference </span><span class="si">{0}</span><span class="s2"> to </span><span class="si">{1}</span><span class="s2">.&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_reference_name</span><span class="p">,</span> <span class="n">filepath</span><span class="p">)</span>
+            <span class="n">rospy</span><span class="o">.</span><span class="n">logerr</span><span class="p">(</span><span class="n">anm</span><span class="o">.</span><span class="n">tag_log</span><span class="p">(</span><span class="n">log_msg</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_client_name</span><span class="p">))</span></div>
+
+<div class="viewcode-block" id="OntologyManager.load_ontology_from_file"><a class="viewcode-back" href="../../../index.html#utilities.assignment1_ERL.ontology_manager.OntologyManager.load_ontology_from_file">[docs]</a>    <span class="k">def</span> <span class="nf">load_ontology_from_file</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">owl_file_path</span><span class="p">,</span> <span class="n">iri</span><span class="p">,</span>
+                           <span class="n">buffered_manipulation</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">reasoner</span><span class="o">=</span><span class="s2">&quot;PELLET&quot;</span><span class="p">,</span> <span class="n">buffered_reasoner</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">mounted</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Function to load an ontology into ARMOR from an .owl file.</span>
+<span class="sd">    </span>
+<span class="sd">        Args:</span>
+<span class="sd">            owl_file_path (str): location of the ontology in the system.</span>
+<span class="sd">            iri (str): iri path given by the user.</span>
+<span class="sd">            buffered_manipulation (bool): set buffered manipulations, default False.</span>
+<span class="sd">            reasoner (str): set which reasoner to use (PELLET, HERMIT, SNOROCKET, FACT), default PELLET.</span>
+<span class="sd">            buffered_reasoner (bool): set if reasoner should be buffered, default False.</span>
+<span class="sd">            mounted (bool): set if the client should be mounted on the reference, default False.</span>
+<span class="sd">    </span>
+<span class="sd">        Raises:</span>
+<span class="sd">            rospy.ServiceException: if call to ARMOR fails.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            bool: True if the call is successful, otherwise False.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">mounted</span><span class="p">:</span>
+                <span class="n">res</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">call</span><span class="p">(</span><span class="s1">&#39;LOAD&#39;</span><span class="p">,</span> <span class="s1">&#39;FILE&#39;</span><span class="p">,</span> <span class="s1">&#39;MOUNTED&#39;</span><span class="p">,</span>
+                                        <span class="p">[</span><span class="n">owl_file_path</span><span class="p">,</span> <span class="n">iri</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">buffered_manipulation</span><span class="p">),</span> <span class="n">reasoner</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">buffered_reasoner</span><span class="p">)])</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">res</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">call</span><span class="p">(</span><span class="s1">&#39;LOAD&#39;</span><span class="p">,</span> <span class="s1">&#39;FILE&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">,</span>
+                                        <span class="p">[</span><span class="n">owl_file_path</span><span class="p">,</span> <span class="n">iri</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">buffered_manipulation</span><span class="p">),</span> <span class="n">reasoner</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">buffered_reasoner</span><span class="p">)])</span>
+            <span class="k">return</span> <span class="n">res</span><span class="o">.</span><span class="n">success</span>
+        
+        <span class="k">except</span> <span class="n">rospy</span><span class="o">.</span><span class="n">ServiceException</span><span class="p">:</span>
+            <span class="n">log_msg</span> <span class="o">=</span> <span class="s2">&quot;Service call failed upon reference </span><span class="si">{0}</span><span class="s2"> from </span><span class="si">{1}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_reference_name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_client_name</span><span class="p">)</span>
+            <span class="n">rospy</span><span class="o">.</span><span class="n">logerr</span><span class="p">(</span><span class="n">anm</span><span class="o">.</span><span class="n">tag_log</span><span class="p">(</span><span class="n">log_msg</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_client_name</span><span class="p">))</span></div>
+
+<div class="viewcode-block" id="OntologyManager.get_ind_classes"><a class="viewcode-back" href="../../../index.html#utilities.assignment1_ERL.ontology_manager.OntologyManager.get_ind_classes">[docs]</a>    <span class="k">def</span> <span class="nf">get_ind_classes</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ind_name</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Function to query all classes an individual belongs to.</span>
+<span class="sd">    </span>
+<span class="sd">        Args:</span>
+<span class="sd">            ind_name (str): individual whose classes are queried.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            rospy.ServiceException: if call to ARMOR fails.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            list: list of classes as strings.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">res</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">call</span><span class="p">(</span><span class="s1">&#39;QUERY&#39;</span><span class="p">,</span> <span class="s1">&#39;CLASS&#39;</span><span class="p">,</span> <span class="s1">&#39;IND&#39;</span><span class="p">,</span> <span class="p">[</span><span class="n">ind_name</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="kc">False</span><span class="p">)])</span>
+    
+        <span class="k">except</span> <span class="n">rospy</span><span class="o">.</span><span class="n">ServiceException</span><span class="p">:</span>
+            <span class="n">log_msg</span> <span class="o">=</span> <span class="s2">&quot;Service call failed upon querying class property to individual </span><span class="si">{0}</span><span class="s2">.&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">ind_name</span><span class="p">)</span>
+            <span class="n">rospy</span><span class="o">.</span><span class="n">logerr</span><span class="p">(</span><span class="n">anm</span><span class="o">.</span><span class="n">tag_log</span><span class="p">(</span><span class="n">log_msg</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_client_name</span><span class="p">))</span>
+
+        <span class="k">if</span> <span class="n">res</span><span class="o">.</span><span class="n">success</span><span class="p">:</span>
+            <span class="n">parsed_res</span> <span class="o">=</span> <span class="p">[</span><span class="n">item</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;#&#39;</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;&gt;&#39;</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">res</span><span class="o">.</span><span class="n">queried_objects</span><span class="p">]</span>
+            <span class="c1">#print(&quot;CLASSES FOR &quot; + str(ind_name) + &quot; are: &quot; + str(parsed_res))</span>
+            <span class="k">return</span> <span class="n">parsed_res</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">rospy</span><span class="o">.</span><span class="n">ServiceException</span><span class="p">(</span><span class="n">res</span><span class="o">.</span><span class="n">error_description</span><span class="p">,</span> <span class="n">res</span><span class="o">.</span><span class="n">exit_code</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="OntologyManager.get_ind_of_class"><a class="viewcode-back" href="../../../index.html#utilities.assignment1_ERL.ontology_manager.OntologyManager.get_ind_of_class">[docs]</a>    <span class="k">def</span> <span class="nf">get_ind_of_class</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">class_name</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Function to query all individuals belonging to a class.</span>
+<span class="sd">    </span>
+<span class="sd">        Args:</span>
+<span class="sd">            class_name (str): class to which the queried individuals belong to.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            rospy.ServiceException: if call to ARMOR fails.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            list: list of individuals labels as strings.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">res</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">call</span><span class="p">(</span><span class="s1">&#39;QUERY&#39;</span><span class="p">,</span> <span class="s1">&#39;IND&#39;</span><span class="p">,</span> <span class="s1">&#39;CLASS&#39;</span><span class="p">,</span> <span class="p">[</span><span class="nb">str</span><span class="p">(</span><span class="n">class_name</span><span class="p">)])</span>
+    
+        <span class="k">except</span> <span class="n">rospy</span><span class="o">.</span><span class="n">ServiceException</span><span class="p">:</span>
+            <span class="n">log_msg</span> <span class="o">=</span> <span class="s2">&quot;Service call failed upon querying individuals related to class </span><span class="si">{0}</span><span class="s2">.&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">class_name</span><span class="p">)</span>
+            <span class="n">rospy</span><span class="o">.</span><span class="n">logerr</span><span class="p">(</span><span class="n">anm</span><span class="o">.</span><span class="n">tag_log</span><span class="p">(</span><span class="n">log_msg</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_client_name</span><span class="p">))</span>
+
+        <span class="k">if</span> <span class="n">res</span><span class="o">.</span><span class="n">success</span><span class="p">:</span>
+            <span class="n">parsed_res</span> <span class="o">=</span> <span class="p">[</span><span class="n">item</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;#&#39;</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;&gt;&#39;</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">res</span><span class="o">.</span><span class="n">queried_objects</span><span class="p">]</span>
+            <span class="k">return</span> <span class="n">parsed_res</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">rospy</span><span class="o">.</span><span class="n">ServiceException</span><span class="p">(</span><span class="n">res</span><span class="o">.</span><span class="n">error_description</span><span class="p">,</span> <span class="n">res</span><span class="o">.</span><span class="n">exit_code</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="OntologyManager.filter_ind_by_class"><a class="viewcode-back" href="../../../index.html#utilities.assignment1_ERL.ontology_manager.OntologyManager.filter_ind_by_class">[docs]</a>    <span class="k">def</span> <span class="nf">filter_ind_by_class</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ind_names</span><span class="p">,</span> <span class="n">class_name</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Function to filter individuals from a list, depending on the classes they belong to.</span>
+<span class="sd">        If the individual belongs to `class_name` it will appear in the first list returned by the function, otherwise in the second one.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            ind_names (list): list of strings, each of them referred to an individual of the ontology.</span>
+<span class="sd">            class_name (str): class used to filter the individuals.</span>
+<span class="sd">        </span>
+<span class="sd">        Returns:</span>
+<span class="sd">            list: list of individuals belonging to the class `class_name`.</span>
+<span class="sd">            list: list of individuals not belonging to the class `class_name`.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">inds_filtered_in</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">inds_filtered_out</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">ind_names</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">class_name</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_ind_classes</span><span class="p">(</span><span class="n">r</span><span class="p">):</span> <span class="c1"># if ind is of type class_name</span>
+                <span class="n">inds_filtered_in</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">r</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">inds_filtered_out</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">r</span><span class="p">)</span> 
+        <span class="k">return</span> <span class="n">inds_filtered_in</span><span class="p">,</span> <span class="n">inds_filtered_out</span></div>
+
+    <span class="k">def</span> <span class="nf">_prepare_request</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">command</span><span class="p">,</span> <span class="n">first_spec</span><span class="p">,</span> <span class="n">second_spec</span><span class="p">,</span> <span class="n">args_list</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Function to filling in the fields of a request to the ARMOR service. </span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            command (str): string that identifies the command of the request.</span>
+<span class="sd">            first_spec (str): string that identifies the primary specification of the request.</span>
+<span class="sd">            second_spec (str): string that identifies the secondary specification of the request.</span>
+<span class="sd">            args_list (list): list that contains all needed arguments to send a proper request.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            ArmorDirectiveReq: ARMOR request ready to be sent.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">req</span> <span class="o">=</span> <span class="n">_ArmorDirectiveReq</span><span class="o">.</span><span class="n">ArmorDirectiveReq</span><span class="p">()</span>
+        <span class="n">req</span><span class="o">.</span><span class="n">client_name</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_client_name</span>
+        <span class="n">req</span><span class="o">.</span><span class="n">reference_name</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_reference_name</span>
+        <span class="n">req</span><span class="o">.</span><span class="n">command</span> <span class="o">=</span> <span class="n">command</span>
+        <span class="n">req</span><span class="o">.</span><span class="n">primary_command_spec</span> <span class="o">=</span> <span class="n">first_spec</span>
+        <span class="n">req</span><span class="o">.</span><span class="n">secondary_command_spec</span> <span class="o">=</span> <span class="n">second_spec</span>
+        <span class="n">req</span><span class="o">.</span><span class="n">args</span> <span class="o">=</span> <span class="n">args_list</span>
+        <span class="k">return</span> <span class="n">req</span>
+    
+<div class="viewcode-block" id="OntologyManager.call"><a class="viewcode-back" href="../../../index.html#utilities.assignment1_ERL.ontology_manager.OntologyManager.call">[docs]</a>    <span class="k">def</span> <span class="nf">call</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">command</span><span class="p">,</span> <span class="n">first_spec</span><span class="p">,</span> <span class="n">second_spec</span><span class="p">,</span> <span class="n">args_list</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Function to perform the actual call to the service, if it is already available.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            command (str): string that identifies the command of the request.</span>
+<span class="sd">            first_spec (str): string that identifies the primary specification of the request.</span>
+<span class="sd">            second_spec (str): string that identifies the secondary specification of the request.</span>
+<span class="sd">            args_list (list): list that contains all needed arguments to send a proper request.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            ArmorDirectiveRes: ARMOR response to the queried operation. </span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">req</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_prepare_request</span><span class="p">(</span><span class="n">command</span><span class="p">,</span> <span class="n">first_spec</span><span class="p">,</span> <span class="n">second_spec</span><span class="p">,</span> <span class="n">args_list</span><span class="p">)</span>
+        <span class="n">rospy</span><span class="o">.</span><span class="n">wait_for_service</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_service_name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_timeout</span><span class="p">)</span>
+        <span class="n">res</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_client</span><span class="p">(</span><span class="n">req</span><span class="p">)</span><span class="o">.</span><span class="n">armor_response</span>
+        <span class="k">return</span> <span class="n">res</span></div></div>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2022, Michele Pestarino.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
