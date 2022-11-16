@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>utilities.assignment1_ERL.helpers &mdash; Assignment 1 - Experiemntal Robotics Course 0.1 documentation</title>
+      <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/graphviz.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js"></script>
+        <script src="../../../_static/jquery.js"></script>
+        <script src="../../../_static/underscore.js"></script>
+        <script src="../../../_static/doctools.js"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+            <a href="../../../index.html" class="icon icon-home"> Assignment 1 - Experiemntal Robotics Course
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <!-- Local TOC -->
+              <div class="local-toc"></div>
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">Assignment 1 - Experiemntal Robotics Course</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home"></a> &raquo;</li>
+          <li><a href="../../index.html">Module code</a> &raquo;</li>
+      <li>utilities.assignment1_ERL.helpers</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for utilities.assignment1_ERL.helpers</h1><div class="highlight"><pre>
+<span></span><span class="ch">#!/usr/bin/env python</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">.. module:: Helpers</span>
+<span class="sd">   :platform: Unix</span>
+<span class="sd">   :synopsis: Python module for manipulating SimpleActionClient entities in an efficient way, resolving the interface to ROS topics, managing global shared variables robustly. </span>
+
+<span class="sd">.. moduleauthor:: Michele Pestarino &lt;s4672032@studenti.unige.it&gt;</span>
+
+<span class="sd">Utility module that encloses a class that allows to instanciate and manage the execution of an action client and an helper class that manage exclusive access to shared resources.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="kn">import</span> <span class="nn">rospy</span>
+<span class="kn">from</span> <span class="nn">actionlib</span> <span class="kn">import</span> <span class="n">SimpleActionClient</span>
+<span class="kn">from</span> <span class="nn">threading</span> <span class="kn">import</span> <span class="n">Lock</span>
+<span class="kn">from</span> <span class="nn">assignment1_ERL</span> <span class="kn">import</span> <span class="n">architecture_name_mapper</span> <span class="k">as</span> <span class="n">anm</span>
+<span class="kn">from</span> <span class="nn">std_msgs.msg</span> <span class="kn">import</span> <span class="n">Bool</span>
+<span class="kn">from</span> <span class="nn">arch_skeleton.srv</span> <span class="kn">import</span> <span class="n">SetPose</span><span class="p">,</span> <span class="n">SetPoseRequest</span>
+<span class="kn">from</span> <span class="nn">arch_skeleton.msg</span> <span class="kn">import</span> <span class="n">PlanAction</span><span class="p">,</span> <span class="n">ControlAction</span><span class="p">,</span> <span class="n">Point</span>
+
+<div class="viewcode-block" id="ActionClientHelper"><a class="viewcode-back" href="../../../index.html#utilities.assignment1_ERL.helpers.ActionClientHelper">[docs]</a><span class="k">class</span> <span class="nc">ActionClientHelper</span><span class="p">:</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Class to create and easily deal with SimpleActionClient entities.</span>
+
+<span class="sd">    Attributes:</span>
+<span class="sd">        _server_name (str): Identifier for the server, needed to instanciate the client. </span>
+<span class="sd">        _client (SimpleActionClient): Client item used to send goals to the action server.</span>
+<span class="sd">        _external_done_cb (function): Callback executed any time goal execution is terminated.</span>
+<span class="sd">        _external_feedback_cb (function): Callback executed any time new feedback is provided.</span>
+<span class="sd">        _mutex (lock): mutex defined for concurrent execution management. </span>
+<span class="sd">        _is_running (bool): Boolean flag to discriminate if the client sent a goal (the server is running it) or not.</span>
+<span class="sd">        _is_done (bool): Boolean flag to discriminate if the goal execution is finished or not. </span>
+<span class="sd">        _results (resultType (its type will depend on the specific action definition)): Actually results of server computation.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">server_name</span><span class="p">,</span> <span class="n">action_type</span><span class="p">,</span> <span class="n">done_callback</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">feedback_callback</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">mutex</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">reset_states</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_server_name</span> <span class="o">=</span> <span class="n">server_name</span>
+
+        <span class="k">if</span> <span class="n">mutex</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_mutex</span> <span class="o">=</span> <span class="n">Lock</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span> 
+            <span class="bp">self</span><span class="o">.</span><span class="n">_mutex</span> <span class="o">=</span> <span class="n">mutex</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_client</span> <span class="o">=</span> <span class="n">SimpleActionClient</span><span class="p">(</span><span class="n">server_name</span><span class="p">,</span> <span class="n">action_type</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_external_done_cb</span> <span class="o">=</span> <span class="n">done_callback</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_external_feedback_cb</span> <span class="o">=</span> <span class="n">feedback_callback</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_client</span><span class="o">.</span><span class="n">wait_for_server</span><span class="p">()</span>
+
+<div class="viewcode-block" id="ActionClientHelper.send_goal"><a class="viewcode-back" href="../../../index.html#utilities.assignment1_ERL.helpers.ActionClientHelper.send_goal">[docs]</a>    <span class="k">def</span> <span class="nf">send_goal</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">goal</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Asynchronously executed function to send a new goal to the ActionServer that also modifies internal flag values.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            goal (goalType (its type will depend on the specific action definition)): goal to be sent.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_is_running</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_client</span><span class="o">.</span><span class="n">send_goal</span><span class="p">(</span><span class="n">goal</span><span class="p">,</span> <span class="n">done_cb</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_done_callback</span><span class="p">,</span> <span class="n">feedback_cb</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_feedback_callback</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_is_running</span> <span class="o">=</span> <span class="kc">True</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_is_done</span> <span class="o">=</span> <span class="kc">False</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_results</span> <span class="o">=</span> <span class="kc">None</span></div>
+
+<div class="viewcode-block" id="ActionClientHelper.reset_states"><a class="viewcode-back" href="../../../index.html#utilities.assignment1_ERL.helpers.ActionClientHelper.reset_states">[docs]</a>    <span class="k">def</span> <span class="nf">reset_states</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Function to reset internal flag values needed for robust execution.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_is_running</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_is_done</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_results</span> <span class="o">=</span> <span class="kc">None</span></div>
+
+<div class="viewcode-block" id="ActionClientHelper.cancel_goals"><a class="viewcode-back" href="../../../index.html#utilities.assignment1_ERL.helpers.ActionClientHelper.cancel_goals">[docs]</a>    <span class="k">def</span> <span class="nf">cancel_goals</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Function to cancel the running goal.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_is_running</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_client</span><span class="o">.</span><span class="n">cancel_all_goals</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">reset_states</span><span class="p">()</span></div>
+
+    <span class="k">def</span> <span class="nf">_feedback_callback</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">feedback</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Function executed while goal is running, giving some feedback information.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            feedback (feedbackType (its type will depend on the specific action definition)): feedback message sent by the server.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_mutex</span><span class="o">.</span><span class="n">acquire</span><span class="p">()</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_external_feedback_cb</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;`&#39;</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">_server_name</span> <span class="o">+</span> <span class="s1">&#39;` action server provides feedback&#39;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">feedback</span><span class="p">))</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_external_feedback_cb</span><span class="p">(</span><span class="n">feedback</span><span class="p">)</span>
+        <span class="k">finally</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_mutex</span><span class="o">.</span><span class="n">release</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">_done_callback</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">status</span><span class="p">,</span> <span class="n">results</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Function executed when goal is completed, giving some status information.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            status (SimpleClientGoalState): status of goal execution (PENDING, ACTIVE, REJECTED, SUCCEEDED, ABORTED, PREEMPTING, PREEMPTED, RECALLING, RECALLED, LOST).</span>
+<span class="sd">            results (resultType (its type will depend on the specific action definition)): actual result of the execution.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_mutex</span><span class="o">.</span><span class="n">acquire</span><span class="p">()</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_is_running</span> <span class="o">=</span> <span class="kc">False</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_is_done</span> <span class="o">=</span> <span class="kc">True</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_results</span> <span class="o">=</span> <span class="n">results</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_external_done_cb</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;`&#39;</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">_server_name</span> <span class="o">+</span> <span class="s1">&#39;` done with state `&#39;</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">_client</span><span class="o">.</span><span class="n">get_state_txt</span><span class="p">()</span> <span class="o">+</span> <span class="s1">&#39;` and result:&#39;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">results</span><span class="p">))</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_external_done_cb</span><span class="p">(</span><span class="n">status</span><span class="p">,</span> <span class="n">results</span><span class="p">)</span>
+        <span class="k">finally</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_mutex</span><span class="o">.</span><span class="n">release</span><span class="p">()</span>
+
+<div class="viewcode-block" id="ActionClientHelper.is_done"><a class="viewcode-back" href="../../../index.html#utilities.assignment1_ERL.helpers.ActionClientHelper.is_done">[docs]</a>    <span class="k">def</span> <span class="nf">is_done</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Getter method for _is_done attribute.</span>
+
+<span class="sd">        Returns: </span>
+<span class="sd">            bool: value for _is_done attribute.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_is_done</span></div>
+
+<div class="viewcode-block" id="ActionClientHelper.is_running"><a class="viewcode-back" href="../../../index.html#utilities.assignment1_ERL.helpers.ActionClientHelper.is_running">[docs]</a>    <span class="k">def</span> <span class="nf">is_running</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Getter method for _is_running attribute.</span>
+
+<span class="sd">        Returns: </span>
+<span class="sd">            bool: value for _is_running attribute.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_is_running</span></div>
+
+<div class="viewcode-block" id="ActionClientHelper.get_results"><a class="viewcode-back" href="../../../index.html#utilities.assignment1_ERL.helpers.ActionClientHelper.get_results">[docs]</a>    <span class="k">def</span> <span class="nf">get_results</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Getter method for _results attribute, given that the goal execution is over.</span>
+
+<span class="sd">        Returns: </span>
+<span class="sd">            resultType (its type will depend on the specific action definition): value for _results attribute.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_is_done</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_results</span></div></div>
+
+
+<div class="viewcode-block" id="InterfaceHelper"><a class="viewcode-back" href="../../../index.html#utilities.assignment1_ERL.helpers.InterfaceHelper">[docs]</a><span class="k">class</span> <span class="nc">InterfaceHelper</span><span class="p">:</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Class to create and easily deal with shared variables updated by ROS topics content, instances of the ActionClientHelper class as well as debug features provided by the software framework.</span>
+
+<span class="sd">    Attributes:</span>
+<span class="sd">        _track_position (bool): Flag needed to enable or disable position tracking of the robot for debug purposes.</span>
+<span class="sd">        _log_file (TextIOWrapper): Reference to the log file in which robot position is reported, if `_track_position` feature is enabled. </span>
+<span class="sd">        mutex (lock): Mutex defined for exclusive access to _battery_low variable and for ActionClientHelper callback execution.</span>
+<span class="sd">        _battery_low (bool): Attribute to keep track of current battery status.</span>
+<span class="sd">        _robot_name (str): Label for robot individual in the ontology, retrieved at the beginning and kept as a constant while executing.</span>
+<span class="sd">        planner_client (ActionClientHelper): Client needed to generate the plan through the `motion/planner` action server to reach a new target room given its name.</span>
+<span class="sd">        controller_client (ActionClientHelper): Client needed to generate commands for the controller through the `motion/controller` action server for executing the plan.</span>
+<span class="sd">        set_pose_service (ServiceProxy): Proxy item needed to randomly set robot position at the beginning of the execution (to have random planner and controller working).</span>
+<span class="sd">        _save_ontology (bool): Flag value to dictate if the modified ontology has to saved.</span>
+<span class="sd">        _ontology_output_path (str): Path to which the ontology has to be saved.</span>
+<span class="sd">        _urgency_threshold (int): Maximum time for which a room is not visited before consider it urgent.</span>
+<span class="sd">        _robust_mode (bool): Flag to discriminate the way in which the urgency is checked.</span>
+
+<span class="sd">    Note:</span>
+<span class="sd">        Planner and controller components, being just placeholders for future development, execute randomly only simulating a real plan generation and actuators motion. </span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Raises:</span>
+<span class="sd">            rospy.ServiceException: in case of failed call to the service.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_track_position</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_save_ontology</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_params</span><span class="p">([</span><span class="n">anm</span><span class="o">.</span><span class="n">TRACK_POSITION_FLAG</span><span class="p">,</span> <span class="n">anm</span><span class="o">.</span><span class="n">SAVE_ONTOLOGY</span><span class="p">])</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_save_ontology</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_ontology_output_path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_params</span><span class="p">([</span><span class="n">anm</span><span class="o">.</span><span class="n">SAVE_ONTOLOGY_PATH</span><span class="p">])[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_log_file</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">mutex</span> <span class="o">=</span> <span class="n">Lock</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_battery_low</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_robot_name</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_urgency_threshold</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_robust_mode</span> <span class="o">=</span> <span class="kc">False</span>
+
+        <span class="c1"># Subscriber for battery topic </span>
+        <span class="n">rospy</span><span class="o">.</span><span class="n">Subscriber</span><span class="p">(</span><span class="n">anm</span><span class="o">.</span><span class="n">TOPIC_BATTERY_LOW</span><span class="p">,</span> <span class="n">Bool</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_battery_callback</span><span class="p">)</span>
+        
+        <span class="c1"># Clients for planner and controller</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">planner_client</span> <span class="o">=</span> <span class="n">ActionClientHelper</span><span class="p">(</span><span class="n">anm</span><span class="o">.</span><span class="n">ACTION_PLANNER</span><span class="p">,</span> <span class="n">PlanAction</span><span class="p">,</span> <span class="n">mutex</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">mutex</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">controller_client</span> <span class="o">=</span> <span class="n">ActionClientHelper</span><span class="p">(</span><span class="n">anm</span><span class="o">.</span><span class="n">ACTION_CONTROLLER</span><span class="p">,</span> <span class="n">ControlAction</span><span class="p">,</span> <span class="n">mutex</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">mutex</span><span class="p">)</span>
+        
+        <span class="c1"># Setting initial robot&#39;s position</span>
+        <span class="n">rospy</span><span class="o">.</span><span class="n">wait_for_service</span><span class="p">(</span><span class="n">anm</span><span class="o">.</span><span class="n">SERVER_SET_POSE</span><span class="p">)</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">set_pose_service</span> <span class="o">=</span> <span class="n">rospy</span><span class="o">.</span><span class="n">ServiceProxy</span><span class="p">(</span><span class="n">anm</span><span class="o">.</span><span class="n">SERVER_SET_POSE</span><span class="p">,</span> <span class="n">SetPose</span><span class="p">)</span>
+        <span class="k">except</span> <span class="n">rospy</span><span class="o">.</span><span class="n">ServiceException</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Service call failed: </span><span class="si">%s</span><span class="s2">&quot;</span><span class="o">%</span><span class="n">e</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">set_robot_pose</span><span class="p">()</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_track_position</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">init_log_file</span><span class="p">()</span>
+        
+            
+    <span class="k">def</span> <span class="nf">_battery_callback</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">msg</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Asynchronously executed function to update battery status.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            msg (bool): value indicating the battery status: if true the battery is low, otherwise the battery does not force the robot to stop and recharge.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">mutex</span><span class="o">.</span><span class="n">acquire</span><span class="p">()</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_battery_low</span> <span class="o">=</span> <span class="n">msg</span><span class="o">.</span><span class="n">data</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_battery_low</span><span class="p">:</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Robot with low battery&#39;</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Robot battery fully charged&#39;</span><span class="p">)</span>
+        <span class="k">finally</span><span class="p">:</span> 
+            <span class="bp">self</span><span class="o">.</span><span class="n">mutex</span><span class="o">.</span><span class="n">release</span><span class="p">()</span>
+
+<div class="viewcode-block" id="InterfaceHelper.is_battery_low"><a class="viewcode-back" href="../../../index.html#utilities.assignment1_ERL.helpers.InterfaceHelper.is_battery_low">[docs]</a>    <span class="k">def</span> <span class="nf">is_battery_low</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Getter method for `_battery_low` attribute.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            bool: value for _battery_low attribute.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_battery_low</span></div>
+    
+<div class="viewcode-block" id="InterfaceHelper.reset_battery"><a class="viewcode-back" href="../../../index.html#utilities.assignment1_ERL.helpers.InterfaceHelper.reset_battery">[docs]</a>    <span class="k">def</span> <span class="nf">reset_battery</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Setter method for `_battery_low` attribute.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_battery_low</span> <span class="o">=</span> <span class="kc">False</span></div>
+    
+<div class="viewcode-block" id="InterfaceHelper.set_robot_pose"><a class="viewcode-back" href="../../../index.html#utilities.assignment1_ERL.helpers.InterfaceHelper.set_robot_pose">[docs]</a>    <span class="k">def</span> <span class="nf">set_robot_pose</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Function to send a SetPoseRequest through the `set_pose_service` attribute.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            rospy.ServiceException: in case of failed call to the service.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">set_pose_request</span> <span class="o">=</span> <span class="n">SetPoseRequest</span><span class="p">()</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">set_pose_request</span><span class="o">.</span><span class="n">pose</span> <span class="o">=</span> <span class="n">Point</span><span class="p">(</span><span class="n">rospy</span><span class="o">.</span><span class="n">get_param</span><span class="p">(</span><span class="n">anm</span><span class="o">.</span><span class="n">PARAM_INITIAL_POSE</span><span class="p">)[</span><span class="mi">0</span><span class="p">],</span> <span class="n">rospy</span><span class="o">.</span><span class="n">get_param</span><span class="p">(</span><span class="n">anm</span><span class="o">.</span><span class="n">PARAM_INITIAL_POSE</span><span class="p">)[</span><span class="mi">1</span><span class="p">])</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">set_pose_service</span><span class="p">(</span><span class="n">set_pose_request</span><span class="p">)</span>
+        <span class="k">except</span> <span class="n">rospy</span><span class="o">.</span><span class="n">ServiceException</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Service call failed: </span><span class="si">%s</span><span class="s2">&quot;</span><span class="o">%</span><span class="n">e</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="InterfaceHelper.init_log_file"><a class="viewcode-back" href="../../../index.html#utilities.assignment1_ERL.helpers.InterfaceHelper.init_log_file">[docs]</a>    <span class="k">def</span> <span class="nf">init_log_file</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Function to assign the log file path if it is provided as ROS parameter.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">rospy</span><span class="o">.</span><span class="n">has_param</span><span class="p">(</span><span class="n">anm</span><span class="o">.</span><span class="n">TRACK_POSITION_LOG_PATH</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_log_file</span> <span class="o">=</span> <span class="nb">open</span><span class="p">(</span><span class="n">rospy</span><span class="o">.</span><span class="n">get_param</span><span class="p">(</span><span class="n">anm</span><span class="o">.</span><span class="n">TRACK_POSITION_LOG_PATH</span><span class="p">),</span> <span class="s2">&quot;w&quot;</span><span class="p">)</span></div>
+    
+<div class="viewcode-block" id="InterfaceHelper.close_log_file"><a class="viewcode-back" href="../../../index.html#utilities.assignment1_ERL.helpers.InterfaceHelper.close_log_file">[docs]</a>    <span class="k">def</span> <span class="nf">close_log_file</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Function to close the connection to the file on which position updates are written.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_log_file</span><span class="o">.</span><span class="n">close</span><span class="p">()</span></div>
+
+<div class="viewcode-block" id="InterfaceHelper.track_position_required"><a class="viewcode-back" href="../../../index.html#utilities.assignment1_ERL.helpers.InterfaceHelper.track_position_required">[docs]</a>    <span class="k">def</span> <span class="nf">track_position_required</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Getter method for `_track_position` attribute.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            bool: value for _track_position attribute.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_track_position</span></div>
+
+<div class="viewcode-block" id="InterfaceHelper.append_room"><a class="viewcode-back" href="../../../index.html#utilities.assignment1_ERL.helpers.InterfaceHelper.append_room">[docs]</a>    <span class="k">def</span> <span class="nf">append_room</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">room</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Function to append a room in the log position file.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            room (str): label for the label to write on file.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_log_file</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">room</span> <span class="o">+</span> <span class="s2">&quot;, &quot;</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="InterfaceHelper.init_robot_name"><a class="viewcode-back" href="../../../index.html#utilities.assignment1_ERL.helpers.InterfaceHelper.init_robot_name">[docs]</a>    <span class="k">def</span> <span class="nf">init_robot_name</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Setter method for `_robot_name` attribute.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            name (str): label for the robot object.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_robot_name</span> <span class="o">=</span> <span class="n">name</span></div>
+
+<div class="viewcode-block" id="InterfaceHelper.robot_name"><a class="viewcode-back" href="../../../index.html#utilities.assignment1_ERL.helpers.InterfaceHelper.robot_name">[docs]</a>    <span class="k">def</span> <span class="nf">robot_name</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Getter method for `_robot_name` attribute.</span>
+<span class="sd">        </span>
+<span class="sd">        Returns:</span>
+<span class="sd">            str: value for _robot_name attribute.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_robot_name</span></div>
+    
+<div class="viewcode-block" id="InterfaceHelper.init_urgency_threshold"><a class="viewcode-back" href="../../../index.html#utilities.assignment1_ERL.helpers.InterfaceHelper.init_urgency_threshold">[docs]</a>    <span class="k">def</span> <span class="nf">init_urgency_threshold</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">threshold</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Setter method for `_urgency_threshold` attribute.</span>
+<span class="sd">        Args:</span>
+<span class="sd">            threshold (int): label for the urgency threshold.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_urgency_threshold</span> <span class="o">=</span> <span class="n">threshold</span></div>
+    
+<div class="viewcode-block" id="InterfaceHelper.urgency_threshold"><a class="viewcode-back" href="../../../index.html#utilities.assignment1_ERL.helpers.InterfaceHelper.urgency_threshold">[docs]</a>    <span class="k">def</span> <span class="nf">urgency_threshold</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Getter method for `_urgency_threshold` attribute.</span>
+<span class="sd">        </span>
+<span class="sd">        Returns:</span>
+<span class="sd">            int: value for _urgency_threshold attribute.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_urgency_threshold</span></div>
+    
+<div class="viewcode-block" id="InterfaceHelper.init_robust_mode"><a class="viewcode-back" href="../../../index.html#utilities.assignment1_ERL.helpers.InterfaceHelper.init_robust_mode">[docs]</a>    <span class="k">def</span> <span class="nf">init_robust_mode</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mode</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Setter method for `_robust_mode` attribute.</span>
+<span class="sd">        Args:</span>
+<span class="sd">            mode (bool): value to assign to _robust_mode attribute.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_robust_mode</span> <span class="o">=</span> <span class="n">mode</span></div>
+
+<div class="viewcode-block" id="InterfaceHelper.robust_mode"><a class="viewcode-back" href="../../../index.html#utilities.assignment1_ERL.helpers.InterfaceHelper.robust_mode">[docs]</a>    <span class="k">def</span> <span class="nf">robust_mode</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Getter method for `_robust_mode` attribute.</span>
+<span class="sd">        </span>
+<span class="sd">        Returns:</span>
+<span class="sd">            bool: value for _robust_mode attribute.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_robust_mode</span></div>
+
+<div class="viewcode-block" id="InterfaceHelper.save_ontology"><a class="viewcode-back" href="../../../index.html#utilities.assignment1_ERL.helpers.InterfaceHelper.save_ontology">[docs]</a>    <span class="k">def</span> <span class="nf">save_ontology</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Getter method for `_save_ontology` attribute.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            bool: value for _save_ontology attribute.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_save_ontology</span></div>
+    
+<div class="viewcode-block" id="InterfaceHelper.ont_output_path"><a class="viewcode-back" href="../../../index.html#utilities.assignment1_ERL.helpers.InterfaceHelper.ont_output_path">[docs]</a>    <span class="k">def</span> <span class="nf">ont_output_path</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Getter method for `_ontology_output_path` attribute.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            str: value for _ontology_output_path attribute.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">save_ontology</span><span class="p">():</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ontology_output_path</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span></div>
+
+<div class="viewcode-block" id="InterfaceHelper.get_params"><a class="viewcode-back" href="../../../index.html#utilities.assignment1_ERL.helpers.InterfaceHelper.get_params">[docs]</a>    <span class="k">def</span> <span class="nf">get_params</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">params</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Function to get the expected parameters from the ROS parameters server.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            params (list): list of keys associated with the parameters to be retrieved.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            rospy.ROSInitException: if at least one expected parameter is not provided.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            list: list of all requested parameters associated with the given keys.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">resp</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">params</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">rospy</span><span class="o">.</span><span class="n">has_param</span><span class="p">(</span><span class="n">p</span><span class="p">):</span>
+                <span class="n">resp</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">rospy</span><span class="o">.</span><span class="n">get_param</span><span class="p">(</span><span class="n">p</span><span class="p">))</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">resp</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="n">params</span><span class="p">):</span>
+            <span class="n">err_msg</span> <span class="o">=</span> <span class="s2">&quot;ERROR: not enough parameters provided&quot;</span>
+            <span class="k">raise</span> <span class="n">rospy</span><span class="o">.</span><span class="n">ROSInitException</span><span class="p">(</span><span class="n">err_msg</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">resp</span></div></div>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2022, Michele Pestarino.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
