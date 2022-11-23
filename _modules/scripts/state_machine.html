@@ -237,30 +237,12 @@
         <span class="c1"># Filter out corridors to avoid random choice considering them</span>
         <span class="n">urgent_corridors</span><span class="p">,</span> <span class="n">urgent_rooms</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_manager</span><span class="o">.</span><span class="n">filter_ind_by_class</span><span class="p">(</span><span class="n">urgents</span><span class="p">,</span> <span class="n">anm</span><span class="o">.</span><span class="n">CORRIDOR_CLASS</span><span class="p">)</span>
         
-        <span class="nb">print</span><span class="p">(</span><span class="n">anm</span><span class="o">.</span><span class="n">STATE_COLOR</span> <span class="o">+</span> <span class="s2">&quot; Current room = &quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">current_room</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot;; &quot;</span><span class="p">)</span> 
-        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot; Reachable rooms = &quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">reachable_rooms</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot;; &quot;</span> <span class="o">+</span> <span class="n">anm</span><span class="o">.</span><span class="n">STANDARD_COLOR</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="n">anm</span><span class="o">.</span><span class="n">STATE_COLOR</span> <span class="o">+</span> <span class="s2">&quot; Current location = &quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">current_room</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot;; &quot;</span><span class="p">)</span> 
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot; Reachable locations = &quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">reachable_rooms</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot;; &quot;</span> <span class="o">+</span> <span class="n">anm</span><span class="o">.</span><span class="n">STANDARD_COLOR</span><span class="p">)</span>
         <span class="nb">print</span><span class="p">(</span><span class="n">anm</span><span class="o">.</span><span class="n">STATE_COLOR</span> <span class="o">+</span> <span class="s2">&quot; Urgent ROOMs among them = &quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">urgent_rooms</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot;; &quot;</span> <span class="o">+</span> <span class="n">anm</span><span class="o">.</span><span class="n">STANDARD_COLOR</span><span class="p">)</span>
 
         <span class="c1"># If there is one or more urgent rooms choose randomly one of them</span>
         <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">urgent_rooms</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
-
-            <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">            print(anm.DEBUG_COLOR)</span>
-<span class="sd">            print(&quot;urgent_rooms debug ===&quot;)</span>
-<span class="sd">            for r in urgent_rooms:</span>
-<span class="sd">                self._manager.sync_reasoner()</span>
-<span class="sd">                if self._helper.save_ontology(): </span>
-<span class="sd">                    self._manager.save(self._helper.ont_output_path())</span>
-<span class="sd">                now_value = int(self._manager.dataprop_ind(anm.NOW_PROP, self._helper.robot_name()))</span>
-<span class="sd">                visited_time = int(self._manager.dataprop_ind(anm.VISITED_AT, r))</span>
-<span class="sd">                elapsed = now_value - visited_time</span>
-<span class="sd">                print(&quot;r = &quot; + str(r) + &quot;; its visited time = &quot; + str(visited_time) + &quot;; with now = &quot; + str(now_value) + &quot;; with threshold: &quot; + str(self._manager.dataprop_ind(&#39;urgencyThreshold&#39;, self._helper.robot_name())) + &quot; and elapsed = &quot; + str(elapsed))</span>
-<span class="sd">                print(&quot;is urgent check: &quot; + str(self._manager.filter_ind_by_class([r], anm.URGENT_CLASS)[0]))</span>
-<span class="sd">            print(&quot;urgent_rooms debug ===&quot;)</span>
-<span class="sd">            print(anm.STANDARD_COLOR)</span>
-<span class="sd">            &quot;&quot;&quot;</span>
-
-
             <span class="n">userdata</span><span class="o">.</span><span class="n">target_room</span> <span class="o">=</span> <span class="n">urgent_rooms</span><span class="p">[</span><span class="n">random</span><span class="o">.</span><span class="n">randint</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="nb">len</span><span class="p">(</span><span class="n">urgent_rooms</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span><span class="p">)]</span>
             <span class="k">return</span> <span class="n">anm</span><span class="o">.</span><span class="n">TARGET_CHOOSEN_TRANS</span>
 
@@ -273,23 +255,6 @@
 
             <span class="c1"># If there is one or more urgent corridors, give priority to them</span>
             <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">urgent_corridors</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
-
-                <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">                print(anm.DEBUG_COLOR)</span>
-<span class="sd">                print(&quot;urgent_corridors debug ===&quot;)</span>
-<span class="sd">                for r in urgent_corridors:</span>
-<span class="sd">                    self._manager.sync_reasoner()</span>
-<span class="sd">                    if self._helper.save_ontology(): </span>
-<span class="sd">                        self._manager.save(self._helper.ont_output_path())</span>
-<span class="sd">                    now_value = int(self._manager.dataprop_ind(anm.NOW_PROP, self._helper.robot_name()))</span>
-<span class="sd">                    visited_time = int(self._manager.dataprop_ind(anm.VISITED_AT, r))</span>
-<span class="sd">                    elapsed = now_value - visited_time</span>
-<span class="sd">                    print(&quot;r = &quot; + str(r) + &quot;; its visited time = &quot; + str(visited_time) + &quot;; with now = &quot; + str(now_value) + &quot;; with threshold: &quot; + str(self._manager.dataprop_ind(&#39;urgencyThreshold&#39;, self._helper.robot_name())) + &quot; and elapsed = &quot; + str(elapsed))</span>
-<span class="sd">                    print(&quot;is urgent check: &quot; + str(self._manager.filter_ind_by_class([r], anm.URGENT_CLASS)[0]))</span>
-<span class="sd">                print(&quot;urgent_corridors debug ===&quot;)</span>
-<span class="sd">                print(anm.STANDARD_COLOR)</span>
-<span class="sd">                &quot;&quot;&quot;</span>
-
                 <span class="n">userdata</span><span class="o">.</span><span class="n">target_room</span> <span class="o">=</span> <span class="n">urgent_corridors</span><span class="p">[</span><span class="n">random</span><span class="o">.</span><span class="n">randint</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="nb">len</span><span class="p">(</span><span class="n">urgent_corridors</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span><span class="p">)]</span>
                 <span class="k">return</span> <span class="n">anm</span><span class="o">.</span><span class="n">TARGET_CHOOSEN_TRANS</span>
 
@@ -546,8 +511,8 @@
             <span class="k">else</span><span class="p">:</span> 
                 <span class="n">corridors_available</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_manager</span><span class="o">.</span><span class="n">filter_ind_by_class</span><span class="p">(</span><span class="n">reachable_rooms</span><span class="p">,</span> <span class="n">anm</span><span class="o">.</span><span class="n">CORRIDOR_CLASS</span><span class="p">)</span>
 
-                <span class="nb">print</span><span class="p">(</span><span class="n">anm</span><span class="o">.</span><span class="n">STATE_COLOR</span> <span class="o">+</span> <span class="s2">&quot; Current room = &quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">current_room</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot;;</span><span class="se">\n</span><span class="s2">Reachable rooms = &quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">reachable_rooms</span><span class="p">)</span> <span class="o">+</span> 
-                        <span class="s2">&quot;;</span><span class="se">\n</span><span class="s2"> Corridors available = &quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">corridors_available</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot; &quot;</span> <span class="o">+</span> <span class="n">anm</span><span class="o">.</span><span class="n">STANDARD_COLOR</span><span class="p">)</span>
+                <span class="nb">print</span><span class="p">(</span><span class="n">anm</span><span class="o">.</span><span class="n">STATE_COLOR</span> <span class="o">+</span> <span class="s2">&quot; Current location = &quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">current_room</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot;;</span><span class="se">\n</span><span class="s2"> Reachable locations = &quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">reachable_rooms</span><span class="p">)</span> <span class="o">+</span> 
+                        <span class="s2">&quot;;</span><span class="se">\n</span><span class="s2"> CORRIDORs available = &quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">corridors_available</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot; &quot;</span> <span class="o">+</span> <span class="n">anm</span><span class="o">.</span><span class="n">STANDARD_COLOR</span><span class="p">)</span>
 
                 <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">corridors_available</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
                     <span class="n">target_room</span> <span class="o">=</span> <span class="n">corridors_available</span><span class="p">[</span><span class="n">random</span><span class="o">.</span><span class="n">randint</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="nb">len</span><span class="p">(</span><span class="n">corridors_available</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span><span class="p">)]</span>
